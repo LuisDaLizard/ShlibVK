@@ -1,8 +1,7 @@
 #ifndef SHLIBVK_GRAPHICS_H
 #define SHLIBVK_GRAPHICS_H
 
-#include "ShlibVK/ShlibVK.h"
-
+#include "Window.h"
 #include <stdbool.h>
 
 struct sGraphicsCreateInfo
@@ -31,6 +30,10 @@ struct sGraphics
     unsigned int vkSwapChainImageFormat;
     unsigned int vkSwapChainImageWidth;
     unsigned int vkSwapChainImageHeight;
+
+    void *vkRenderPass;
+
+    void *vkShaderCompiler;
 };
 
 typedef struct sGraphicsCreateInfo GraphicsCreateInfo;

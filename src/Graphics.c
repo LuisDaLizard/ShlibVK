@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include <shaderc/shaderc.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -54,7 +55,8 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
 void CreateSurface(Graphics graphics, Window window);
 void CreateSwapChain(Graphics graphics, Window window);
 void CreateImageViews(Graphics graphics);
-void CreateGraphicsPipeline(Graphics graphics);
+void CreateShaderCompiler(Graphics graphics);
+void CreateRenderPass(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -70,7 +72,8 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateLogicalDevice(pCreateInfo, graphics);
     CreateSwapChain(graphics, pCreateInfo->window);
     CreateImageViews(graphics);
-    CreateGraphicsPipeline(graphics);
+    CreateShaderCompiler(graphics);
+    CreateRenderPass(graphics);
 
     *pGraphics = graphics;
     return true;
@@ -81,6 +84,8 @@ void GraphicsDestroy(Graphics graphics)
     if (!graphics)
         return;
 
+    vkDestroyRenderPass(graphics->vkDevice, graphics->vkRenderPass, NULL);
+    shaderc_compiler_release(graphics->vkShaderCompiler);
     for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
         vkDestroyImageView(graphics->vkDevice, graphics->vkSwapChainImageViews[i], NULL);
     free(graphics->vkSwapChainImageViews);
@@ -320,8 +325,42 @@ void CreateImageViews(Graphics graphics)
     }
 }
 
-void CreateGraphicsPipeline(Graphics graphics)
+void CreateShaderCompiler(Graphics graphics)
 {
+    graphics->vkShaderCompiler = shaderc_compiler_initialize();
+}
+
+void CreateRenderPass(Graphics graphics)
+{
+    VkAttachmentDescription colorAttachment = { 0 };
+    colorAttachment.format = graphics->vkSwapChainImageFormat;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRef = { 0 };
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = { 0 };
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkRenderPassCreateInfo renderPassInfo = { 0 };
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+
+    VkResult result = vkCreateRenderPass(graphics->vkDevice, &renderPassInfo, NULL, (VkRenderPass *)&graphics->vkRenderPass);
+    if (result != VK_SUCCESS)
+        WriteError(1, "Failed to create render pass");
 
 }
 
