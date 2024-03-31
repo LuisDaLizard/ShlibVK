@@ -666,7 +666,7 @@ VkSurfaceFormatKHR ChooseSwapSurfaceFormat(VkSurfaceFormatKHR *pAvailableFormats
 
 VkPresentModeKHR ChooseSwapPresentMode(VkPresentModeKHR *pAvailableModes, unsigned int availableModeCount)
 {
-    return VK_PRESENT_MODE_FIFO_KHR;
+    return VK_PRESENT_MODE_IMMEDIATE_KHR;
 }
 
 VkExtent2D ChooseSwapExtent(Window window, VkSurfaceCapabilitiesKHR capabilities)
