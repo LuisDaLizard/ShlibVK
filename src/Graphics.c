@@ -57,6 +57,10 @@ void CreateSwapChain(Graphics graphics, Window window);
 void CreateImageViews(Graphics graphics);
 void CreateShaderCompiler(Graphics graphics);
 void CreateRenderPass(Graphics graphics);
+void CreateFramebuffers(Graphics graphics);
+void CreateCommandPool(Graphics graphics);
+void CreateCommandBuffer(Graphics graphics);
+void CreateSyncObjects(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -74,6 +78,10 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateImageViews(graphics);
     CreateShaderCompiler(graphics);
     CreateRenderPass(graphics);
+    CreateFramebuffers(graphics);
+    CreateCommandPool(graphics);
+    CreateCommandBuffer(graphics);
+    CreateSyncObjects(graphics);
 
     *pGraphics = graphics;
     return true;
@@ -84,6 +92,15 @@ void GraphicsDestroy(Graphics graphics)
     if (!graphics)
         return;
 
+    vkDeviceWaitIdle(graphics->vkDevice);
+
+    vkDestroySemaphore(graphics->vkDevice, graphics->vkImageAvailableSemaphore, NULL);
+    vkDestroySemaphore(graphics->vkDevice, graphics->vkRenderFinishedSemaphore, NULL);
+    vkDestroyFence(graphics->vkDevice, graphics->vkInFlightFence, NULL);
+
+    vkDestroyCommandPool(graphics->vkDevice, graphics->vkCommandPool, NULL);
+    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+        vkDestroyFramebuffer(graphics->vkDevice, graphics->vkSwapChainFramebuffers[i], NULL);
     vkDestroyRenderPass(graphics->vkDevice, graphics->vkRenderPass, NULL);
     shaderc_compiler_release(graphics->vkShaderCompiler);
     for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
@@ -98,6 +115,95 @@ void GraphicsDestroy(Graphics graphics)
         DestroyDebugUtilsMessengerEXT(graphics->vkInstance, graphics->vkDebugMessenger, NULL);
     vkDestroyInstance(graphics->vkInstance, NULL);
     free(graphics);
+}
+
+void GraphicsBeginRenderPass(Graphics graphics)
+{
+    vkWaitForFences(graphics->vkDevice, 1, (VkFence *)&graphics->vkInFlightFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(graphics->vkDevice, 1, (VkFence *)&graphics->vkInFlightFence);
+
+    vkAcquireNextImageKHR(graphics->vkDevice, graphics->vkSwapChain, UINT64_MAX, graphics->vkImageAvailableSemaphore, VK_NULL_HANDLE, &graphics->vkImageIndex);
+    vkResetCommandBuffer(graphics->vkCommandBuffer, 0);
+
+    VkCommandBufferBeginInfo beginInfo = { 0 };
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = 0; // Optional
+    beginInfo.pInheritanceInfo = NULL; // Optional
+
+    VkResult result = vkBeginCommandBuffer(graphics->vkCommandBuffer, &beginInfo);
+    if (result != VK_SUCCESS)
+        WriteError(1, "Failed to begin recording command buffer");
+
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkRenderPassBeginInfo renderPassInfo = { 0 };
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = graphics->vkRenderPass;
+    renderPassInfo.framebuffer = graphics->vkSwapChainFramebuffers[graphics->vkImageIndex];
+    renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
+    renderPassInfo.renderArea.extent.width = graphics->vkSwapChainImageWidth;
+    renderPassInfo.renderArea.extent.height = graphics->vkSwapChainImageHeight;
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
+
+    vkCmdBeginRenderPass(graphics->vkCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport = { 0 };
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)graphics->vkSwapChainImageWidth;
+    viewport.height = (float)graphics->vkSwapChainImageHeight;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(graphics->vkCommandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor = { 0 };
+    scissor.offset = (VkOffset2D){0, 0};
+    scissor.extent.width = graphics->vkSwapChainImageWidth;
+    scissor.extent.height = graphics->vkSwapChainImageHeight;
+    vkCmdSetScissor(graphics->vkCommandBuffer, 0, 1, &scissor);
+}
+
+void GraphicsEndRenderPass(Graphics graphics)
+{
+    //TODO: Remove temporary draw call
+    vkCmdDraw(graphics->vkCommandBuffer, 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(graphics->vkCommandBuffer);
+
+    if (vkEndCommandBuffer(graphics->vkCommandBuffer) != VK_SUCCESS)
+        WriteError(1, "Failed to record command buffer");
+
+    //TODO: Consider moving submit process
+    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+    VkSubmitInfo submitInfo = { 0 };
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = (VkSemaphore *)&graphics->vkImageAvailableSemaphore;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = (VkCommandBuffer *)&graphics->vkCommandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = (VkSemaphore *)&graphics->vkRenderFinishedSemaphore;
+
+    if (vkQueueSubmit(graphics->vkGraphicsQueue, 1, &submitInfo, graphics->vkInFlightFence) != VK_SUCCESS)
+        WriteError(1, "Failed to submit draw command buffer");
+
+    VkPresentInfoKHR presentInfo = { 0 };
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = (VkSemaphore *)&graphics->vkRenderFinishedSemaphore;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = (VkSwapchainKHR *)&graphics->vkSwapChain;
+    presentInfo.pImageIndices = &graphics->vkImageIndex;
+    presentInfo.pResults = NULL; // Optional
+
+    vkQueuePresentKHR(graphics->vkPresentQueue, &presentInfo);
+}
+
+void GraphicsBindPipeline(Graphics graphics, Pipeline pipeline)
+{
+    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
 }
 
 void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
@@ -351,17 +457,93 @@ void CreateRenderPass(Graphics graphics)
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
 
+    VkSubpassDependency dependency = { 0 };
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     VkRenderPassCreateInfo renderPassInfo = { 0 };
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 1;
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
     VkResult result = vkCreateRenderPass(graphics->vkDevice, &renderPassInfo, NULL, (VkRenderPass *)&graphics->vkRenderPass);
     if (result != VK_SUCCESS)
         WriteError(1, "Failed to create render pass");
 
+}
+
+void CreateFramebuffers(Graphics graphics)
+{
+    graphics->vkSwapChainFramebuffers = malloc(sizeof(VkFramebuffer) * graphics->vkSwapChainImageCount);
+
+    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+    {
+        VkFramebufferCreateInfo framebufferInfo = { 0 };
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = graphics->vkRenderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.pAttachments = (VkImageView *)&graphics->vkSwapChainImageViews[i];
+        framebufferInfo.width = graphics->vkSwapChainImageWidth;
+        framebufferInfo.height = graphics->vkSwapChainImageHeight;
+        framebufferInfo.layers = 1;
+
+        VkResult result = vkCreateFramebuffer(graphics->vkDevice, &framebufferInfo, NULL, (VkFramebuffer *)&graphics->vkSwapChainFramebuffers[i]);
+        if (result != VK_SUCCESS)
+            WriteError(1, "Failed to create framebuffers");
+    }
+}
+
+void CreateCommandPool(Graphics graphics)
+{
+    QueueFamilyIndices indices = FindQueueFamilies(graphics, graphics->vkPhysicalDevice);
+
+    VkCommandPoolCreateInfo poolInfo = { 0 };
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = indices.graphics;
+
+    VkResult result = vkCreateCommandPool(graphics->vkDevice, &poolInfo, NULL, (VkCommandPool *)&graphics->vkCommandPool);
+    if (result != VK_SUCCESS)
+        WriteError(1, "Failed to create command pool");
+}
+
+void CreateCommandBuffer(Graphics graphics)
+{
+    VkCommandBufferAllocateInfo allocInfo = { 0 };
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = graphics->vkCommandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+
+    VkResult result = vkAllocateCommandBuffers(graphics->vkDevice, &allocInfo, (VkCommandBuffer *)&graphics->vkCommandBuffer);
+    if (result != VK_SUCCESS)
+        WriteError(1, "Failed to allocate command buffers");
+}
+
+void CreateSyncObjects(Graphics graphics)
+{
+    VkSemaphoreCreateInfo semaphoreInfo = { 0 };
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fenceInfo = { 0 };
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkResult result1, result2, result3;
+    result1 = vkCreateSemaphore(graphics->vkDevice, &semaphoreInfo, NULL, (VkSemaphore *)&graphics->vkImageAvailableSemaphore);
+    result2 = vkCreateSemaphore(graphics->vkDevice, &semaphoreInfo, NULL, (VkSemaphore *)&graphics->vkRenderFinishedSemaphore);
+    result3 = vkCreateFence(graphics->vkDevice, &fenceInfo, NULL, (VkFence *)&graphics->vkInFlightFence);
+
+    if (result1 != VK_SUCCESS || result2 != VK_SUCCESS || result3 != VK_SUCCESS)
+        WriteError(1, "Failed to create semaphores and fences");
 }
 
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)

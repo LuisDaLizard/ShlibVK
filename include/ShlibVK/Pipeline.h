@@ -1,7 +1,7 @@
 #ifndef SHLIBVK_PIPELINE_H
 #define SHLIBVK_PIPELINE_H
 
-#include "Graphics.h"
+#include <stdbool.h>
 
 typedef enum eTopology
 {
@@ -12,7 +12,7 @@ typedef enum eTopology
 
 struct sPipelineCreateInfo
 {
-    Graphics graphics;
+    void *graphics;
 
     const char *pVertexShaderCode;
     const char *pFragmentShaderCode;

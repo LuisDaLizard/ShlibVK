@@ -46,6 +46,10 @@ int main()
     while(!WindowShouldClose(gWindow))
     {
         WindowPollEvents(gWindow);
+
+        GraphicsBeginRenderPass(gGraphics);
+        GraphicsBindPipeline(gGraphics, gPipeline);
+        GraphicsEndRenderPass(gGraphics);
     }
 
     Cleanup();

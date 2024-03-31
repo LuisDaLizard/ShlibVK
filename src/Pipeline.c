@@ -1,5 +1,6 @@
 #include "ShlibVK/Pipeline.h"
 #include "ShlibVK/Utils.h"
+#include "ShlibVK/Graphics.h"
 #include <vulkan/vulkan.h>
 #include <shaderc/shaderc.h>
 #include <string.h>
@@ -10,6 +11,8 @@ VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShader
 
 bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
+    Graphics graphics = pCreateInfo->graphics;
+
     int vertexCodeSize = 0;
     int fragmentCodeSize = 0;
     const unsigned int *vertexCode = CompileShaderSource(pCreateInfo, pCreateInfo->pVertexShaderCode, &vertexCodeSize, shaderc_glsl_vertex_shader);
@@ -18,8 +21,8 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     if (!vertexCode || !fragmentCode)
         return false;
 
-    VkShaderModule vertex = CreateShaderModule(pCreateInfo->graphics, vertexCode, vertexCodeSize);
-    VkShaderModule fragment = CreateShaderModule(pCreateInfo->graphics, fragmentCode, fragmentCodeSize);
+    VkShaderModule vertex = CreateShaderModule(graphics, vertexCode, vertexCodeSize);
+    VkShaderModule fragment = CreateShaderModule(graphics, fragmentCode, fragmentCodeSize);
 
     VkPipelineShaderStageCreateInfo vertexStage = { 0 };
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -50,15 +53,15 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     VkViewport viewport = { 0 };
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) pCreateInfo->graphics->vkSwapChainImageWidth;
-    viewport.height = (float) pCreateInfo->graphics->vkSwapChainImageHeight;
+    viewport.width = (float) graphics->vkSwapChainImageWidth;
+    viewport.height = (float) graphics->vkSwapChainImageHeight;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = { 0 };
     scissor.offset = (VkOffset2D){0, 0};
-    scissor.extent.width = pCreateInfo->graphics->vkSwapChainImageWidth;
-    scissor.extent.height = pCreateInfo->graphics->vkSwapChainImageHeight;
+    scissor.extent.width = graphics->vkSwapChainImageWidth;
+    scissor.extent.height = graphics->vkSwapChainImageHeight;
 
     VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
@@ -123,9 +126,9 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     pipelineLayoutInfo.pPushConstantRanges = NULL; // Optional
 
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
-    pipeline->vkDevice = pCreateInfo->graphics->vkDevice;
+    pipeline->vkDevice = graphics->vkDevice;
 
-    VkResult result = vkCreatePipelineLayout(pCreateInfo->graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
+    VkResult result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
 
     if (result != VK_SUCCESS)
     {
@@ -146,20 +149,20 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipeline->vkPipelineLayout;
-    pipelineInfo.renderPass = pCreateInfo->graphics->vkRenderPass;
+    pipelineInfo.renderPass = graphics->vkRenderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
-    result = vkCreateGraphicsPipelines(pCreateInfo->graphics->vkDevice, NULL, 1, &pipelineInfo, NULL, (VkPipeline *)&pipeline->vkGraphicsPipeline);
+    result = vkCreateGraphicsPipelines(graphics->vkDevice, NULL, 1, &pipelineInfo, NULL, (VkPipeline *)&pipeline->vkGraphicsPipeline);
     if (result != VK_SUCCESS)
     {
         WriteWarning("Failed to create graphics pipeline");
         return false;
     }
 
-    vkDestroyShaderModule(pCreateInfo->graphics->vkDevice, vertex, NULL);
-    vkDestroyShaderModule(pCreateInfo->graphics->vkDevice, fragment, NULL);
+    vkDestroyShaderModule(graphics->vkDevice, vertex, NULL);
+    vkDestroyShaderModule(graphics->vkDevice, fragment, NULL);
 
     *pPipeline = pipeline;
     return true;
@@ -167,6 +170,8 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 
 void PipelineDestroy(Pipeline pipeline)
 {
+    vkDeviceWaitIdle(pipeline->vkDevice);
+
     vkDestroyPipeline(pipeline->vkDevice, pipeline->vkGraphicsPipeline, NULL);
     vkDestroyPipelineLayout(pipeline->vkDevice, pipeline->vkPipelineLayout, NULL);
 }
@@ -175,7 +180,7 @@ const unsigned int *CompileShaderSource(PipelineCreateInfo *pCreateInfo, const c
 {
     int sourceSize = (int)strlen(pSource);
 
-    shaderc_compilation_result_t result = shaderc_compile_into_spv(pCreateInfo->graphics->vkShaderCompiler, pSource, sourceSize, shaderType, "Shader", "main", NULL);
+    shaderc_compilation_result_t result = shaderc_compile_into_spv(((Graphics)pCreateInfo->graphics)->vkShaderCompiler, pSource, sourceSize, shaderType, "Shader", "main", NULL);
 
     // Error checking result
     shaderc_compilation_status status = shaderc_result_get_compilation_status(result);

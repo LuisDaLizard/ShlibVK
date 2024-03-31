@@ -2,6 +2,7 @@
 #define SHLIBVK_GRAPHICS_H
 
 #include "Window.h"
+#include "Pipeline.h"
 #include <stdbool.h>
 
 struct sGraphicsCreateInfo
@@ -26,12 +27,19 @@ struct sGraphics
     void *vkSwapChain;
     void **vkSwapChainImages;
     void **vkSwapChainImageViews;
+    void **vkSwapChainFramebuffers;
     unsigned int vkSwapChainImageCount;
     unsigned int vkSwapChainImageFormat;
     unsigned int vkSwapChainImageWidth;
     unsigned int vkSwapChainImageHeight;
 
     void *vkRenderPass;
+    void *vkCommandPool;
+    void *vkCommandBuffer;
+    void *vkImageAvailableSemaphore;
+    void *vkRenderFinishedSemaphore;
+    void *vkInFlightFence;
+    unsigned int vkImageIndex;
 
     void *vkShaderCompiler;
 };
@@ -41,5 +49,10 @@ typedef struct sGraphics *Graphics;
 
 bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics);
 void GraphicsDestroy(Graphics graphics);
+
+void GraphicsBeginRenderPass(Graphics graphics);
+void GraphicsEndRenderPass(Graphics graphics);
+
+void GraphicsBindPipeline(Graphics graphics, Pipeline pipeline);
 
 #endif //SHLIBVK_GRAPHICS_H
