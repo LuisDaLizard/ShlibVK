@@ -1,27 +1,6 @@
 #include <ShlibVK/ShlibVK.h>
 #include <stdlib.h>
 
-const char *pVertexSource = "#version 450\n"
-                            "\n"
-                            "layout(location = 0) in vec2 aPosition;\n"
-                            "layout(location = 1) in vec3 aColor;\n"
-                            "\n"
-                            "layout(location = 0) out vec3 fColor;\n"
-                            "\n"
-                            "void main() {\n"
-                            "    gl_Position = vec4(aPosition, 0.0, 1.0);\n"
-                            "    fColor = aColor;\n"
-                            "}";
-const char *pFragmentSource = "#version 450\n"
-                              "\n"
-                              "layout(location = 0) in vec3 fColor;\n"
-                              "\n"
-                              "layout(location = 0) out vec4 oColor;\n"
-                              "\n"
-                              "void main() {\n"
-                              "    oColor = vec4(fColor, 1.0);\n"
-                              "}";
-
 typedef struct sVertex
 {
     float x;
@@ -103,15 +82,18 @@ void InitPipeline()
 
     Attribute color = { 0 };
     color.location = 1;
-    color.offset = offsetof(Vertex, r);
+    color.offset = 2 * sizeof(float);
     color.components = 3;
 
     Attribute attributes[] = {position, color};
 
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
-    createInfo.pVertexShaderCode = pVertexSource;
-    createInfo.pFragmentShaderCode = pFragmentSource;
+    int size = 0;
+    createInfo.pVertexShaderCode = FileReadBytes("../resources/bin/triangle.vert", &size);
+    createInfo.vertexShaderSize = size;
+    createInfo.pFragmentShaderCode = FileReadBytes("../resources/bin/triangle.frag", &size);
+    createInfo.fragmentShaderSize = size;
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
     createInfo.stride = sizeof(Vertex);

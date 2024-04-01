@@ -1,26 +1,21 @@
 #include "ShlibVK/Pipeline.h"
 #include "ShlibVK/Utils.h"
 #include "ShlibVK/Graphics.h"
+
 #include <vulkan/vulkan.h>
-#include <shaderc/shaderc.h>
+
 #include <string.h>
 #include <stdlib.h>
 
-const unsigned int *CompileShaderSource(Graphics graphics, PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType);
-VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, int shaderCodeSize);
+VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
-    int vertexCodeSize = 0;
-    int fragmentCodeSize = 0;
-    const unsigned int *vertexCode = CompileShaderSource(graphics, pCreateInfo, pCreateInfo->pVertexShaderCode, &vertexCodeSize, shaderc_glsl_vertex_shader);
-    const unsigned int *fragmentCode = CompileShaderSource(graphics, pCreateInfo, pCreateInfo->pFragmentShaderCode, &fragmentCodeSize, shaderc_glsl_fragment_shader);
-
-    if (!vertexCode || !fragmentCode)
+    if (!pCreateInfo->pVertexShaderCode || !pCreateInfo->pFragmentShaderCode)
         return false;
 
-    VkShaderModule vertex = CreateShaderModule(graphics, vertexCode, vertexCodeSize);
-    VkShaderModule fragment = CreateShaderModule(graphics, fragmentCode, fragmentCodeSize);
+    VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
+    VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
 
     VkPipelineShaderStageCreateInfo vertexStage = { 0 };
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -42,7 +37,8 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription *attributeDescriptions = malloc(sizeof(VkVertexInputAttributeDescription) * pCreateInfo->attributeCount);
-    for (int i = 0; i < pCreateInfo->attributeCount; i++)
+    int i;
+    for (i = 0; i < pCreateInfo->attributeCount; i++)
     {
         unsigned int format;
 
@@ -154,7 +150,7 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
 
     VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding ) * pCreateInfo->descriptorCount);
-    for (int i = 0; i < pCreateInfo->descriptorCount; i++)
+    for (i = 0; i < pCreateInfo->descriptorCount; i++)
     {
         layouts[i].binding = pCreateInfo->pDescriptors[i].location;
         layouts[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -239,25 +235,7 @@ void PipelineBind(Graphics graphics, Pipeline pipeline)
     vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
 }
 
-const unsigned int *CompileShaderSource(Graphics graphics, PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType)
-{
-    int sourceSize = (int)strlen(pSource);
-
-    shaderc_compilation_result_t result = shaderc_compile_into_spv(graphics->vkShaderCompiler, pSource, sourceSize, shaderType, "Shader", "main", NULL);
-
-    // Error checking result
-    shaderc_compilation_status status = shaderc_result_get_compilation_status(result);
-    if (status != shaderc_compilation_status_success)
-    {
-        WriteWarning(shaderc_result_get_error_message(result));
-        return NULL;
-    }
-
-    *pCodeSize = (int)shaderc_result_get_length(result);
-    return (const unsigned int *)shaderc_result_get_bytes(result);
-}
-
-VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, int shaderCodeSize)
+VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize)
 {
     VkShaderModule shaderModule;
 

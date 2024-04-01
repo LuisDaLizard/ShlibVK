@@ -3,19 +3,27 @@
 #include "ShlibVK/Window.h"
 
 
+#ifdef __WIN32__
 #define VK_USE_PLATFORM_WIN32_KHR
+#define GLFW_EXPOSE_NATIVE_WIN32
+#endif
+
+#ifdef __APPLE__
+#define GLFW_EXPOSE_NATIVE_COCOA
+#endif
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+
 #include <shaderc/shaderc.h>
 
 #include <stdlib.h>
 #include <string.h>
 
 const char *ValidationLayers[] = { "VK_LAYER_KHRONOS_validation" };
-const unsigned int RequiredDeviceExtensionCount = 1;
-const char *RequiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+const unsigned int RequiredDeviceExtensionCount = 2;
+const char *RequiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
 
 typedef struct sQueueFamilyIndices
 {
@@ -55,7 +63,6 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
 void CreateSurface(Graphics graphics);
 void CreateSwapChain(Graphics graphics);
 void CreateImageViews(Graphics graphics);
-void CreateShaderCompiler(Graphics graphics);
 void CreateRenderPass(Graphics graphics);
 void CreateFramebuffers(Graphics graphics);
 void CreateCommandPool(Graphics graphics);
@@ -81,7 +88,6 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateLogicalDevice(pCreateInfo, graphics);
     CreateSwapChain(graphics);
     CreateImageViews(graphics);
-    CreateShaderCompiler(graphics);
     CreateRenderPass(graphics);
     CreateFramebuffers(graphics);
     CreateCommandPool(graphics);
@@ -98,8 +104,6 @@ void GraphicsDestroy(Graphics graphics)
         return;
 
     vkDeviceWaitIdle(graphics->vkDevice);
-
-    shaderc_compiler_release(graphics->vkShaderCompiler);
 
     CleanupSwapChain(graphics);
 
@@ -237,6 +241,7 @@ void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = ValidationLayers;
     }
+    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
     VkResult result = vkCreateInstance(&createInfo, NULL, (VkInstance*)&graphics->vkInstance);
     if (result != VK_SUCCESS)
@@ -270,8 +275,8 @@ void PickPhysicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
 
     VkPhysicalDevice bestDevice = devices[0];
     int bestScore = RateDeviceSuitability(graphics, devices[0]);
-
-    for (int i = 1; i < deviceCount; i++)
+    int i;
+    for (i = 1; i < deviceCount; i++)
     {
         int score = RateDeviceSuitability(graphics, devices[i]);
 
@@ -300,11 +305,12 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
     unsigned int uniqueQueueFamilyCount = 0;
     unsigned int *uniqueQueueFamilies = calloc(2, sizeof(unsigned int));
 
-    for (int i = 0; i < queueFamilyCount; i++)
+    int i, j;
+    for (i = 0; i < queueFamilyCount; i++)
     {
         bool unique = true;
 
-        for (int j = 0; j < uniqueQueueFamilyCount; j++)
+        for (j = 0; j < uniqueQueueFamilyCount; j++)
         {
             if (queueFamilies[i] == uniqueQueueFamilies[j])
             {
@@ -322,7 +328,7 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
 
     VkDeviceQueueCreateInfo *queueCreateInfos = malloc(sizeof(VkDeviceQueueCreateInfo) * uniqueQueueFamilyCount);
 
-    for (int i = 0; i < uniqueQueueFamilyCount; i++)
+    for (i = 0; i < uniqueQueueFamilyCount; i++)
     {
         VkDeviceQueueCreateInfo queueCreateInfo = { 0 };
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -422,7 +428,8 @@ void CreateImageViews(Graphics graphics)
 {
     graphics->vkSwapChainImageViews = malloc(sizeof(VkImageView) * graphics->vkSwapChainImageCount);
 
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+    int i;
+    for (i = 0; i < graphics->vkSwapChainImageCount; i++)
     {
         VkImageViewCreateInfo createInfo = { 0 };
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -443,11 +450,6 @@ void CreateImageViews(Graphics graphics)
         if (result != VK_SUCCESS)
             WriteError(1, "failed to create image views");
     }
-}
-
-void CreateShaderCompiler(Graphics graphics)
-{
-    graphics->vkShaderCompiler = shaderc_compiler_initialize();
 }
 
 void CreateRenderPass(Graphics graphics)
@@ -498,7 +500,8 @@ void CreateFramebuffers(Graphics graphics)
 {
     graphics->vkSwapChainFramebuffers = malloc(sizeof(VkFramebuffer) * graphics->vkSwapChainImageCount);
 
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+    int i;
+    for (i = 0; i < graphics->vkSwapChainImageCount; i++)
     {
         VkFramebufferCreateInfo framebufferInfo = { 0 };
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -581,10 +584,12 @@ void RecreateSwapChain(Graphics graphics)
 
 void CleanupSwapChain(Graphics graphics)
 {
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+    int i;
+
+    for (i = 0; i < graphics->vkSwapChainImageCount; i++)
         vkDestroyFramebuffer(graphics->vkDevice, graphics->vkSwapChainFramebuffers[i], NULL);
 
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+    for (i = 0; i < graphics->vkSwapChainImageCount; i++)
         vkDestroyImageView(graphics->vkDevice, graphics->vkSwapChainImageViews[i], NULL);
 
     vkDestroySwapchainKHR(graphics->vkDevice, graphics->vkSwapChain, NULL);
@@ -613,7 +618,7 @@ int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
     if (!swapChainSupport.formatCount || !swapChainSupport.presentModeCount)
         return 0;
 
-    int score = 0;
+    int score = 10;
 
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
         score += 100;
@@ -631,9 +636,10 @@ bool CheckDeviceExtensionSuitability(VkPhysicalDevice device)
 
     unsigned int requiredExtensionCount = RequiredDeviceExtensionCount;
 
-    for (int i = 0; i < RequiredDeviceExtensionCount; i++)
+    int i, j;
+    for (i = 0; i < RequiredDeviceExtensionCount; i++)
     {
-        for (int j = 0; j < extensionCount; j++)
+        for (j = 0; j < extensionCount; j++)
         {
             if (strcmp(RequiredDeviceExtensions[i], availableExtensions[j].extensionName) == 0)
                 requiredExtensionCount--;
@@ -676,7 +682,8 @@ QueueFamilyIndices FindQueueFamilies(Graphics graphics, VkPhysicalDevice device)
     VkQueueFamilyProperties *queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies);
 
-    for (int i = 0; i < queueFamilyCount; i++)
+    int i;
+    for (i = 0; i < queueFamilyCount; i++)
     {
         if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
@@ -703,7 +710,8 @@ QueueFamilyIndices FindQueueFamilies(Graphics graphics, VkPhysicalDevice device)
 
 VkSurfaceFormatKHR ChooseSwapSurfaceFormat(VkSurfaceFormatKHR *pAvailableFormats, unsigned int availableFormatCount)
 {
-    for (int i = 0; i < availableFormatCount; i++)
+    int i;
+    for (i = 0; i < availableFormatCount; i++)
     {
         VkSurfaceFormatKHR surfaceFormat = pAvailableFormats[i];
         if (surfaceFormat.format == VK_FORMAT_B8G8R8A8_SRGB && surfaceFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
@@ -764,6 +772,10 @@ const char **GetRequiredExtensions(GraphicsCreateInfo *pCreateInfo, unsigned int
     if (pCreateInfo->debug)
         *pExtensionCount += 1;
 
+#ifdef __APPLE__
+    *pExtensionCount += 2;
+#endif
+
     const char **extensions = malloc(sizeof(const char *) * (*pExtensionCount));
     memcpy(extensions, glfwExtensions, sizeof(const char *) * glfwExtensionCount);
 
@@ -774,6 +786,12 @@ const char **GetRequiredExtensions(GraphicsCreateInfo *pCreateInfo, unsigned int
         extensions[i] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
         i++;
     }
+
+#ifdef __APPLE__
+    extensions[i] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+    extensions[i + 1] = "VK_KHR_get_physical_device_properties2";
+    i += 2;
+#endif
 
     return extensions;
 }

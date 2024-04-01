@@ -33,8 +33,10 @@ typedef struct sDescriptor
 
 struct sPipelineCreateInfo
 {
-    const char *pVertexShaderCode;
-    const char *pFragmentShaderCode;
+    const unsigned int *pVertexShaderCode;
+    unsigned int vertexShaderSize;
+    const unsigned int *pFragmentShaderCode;
+    unsigned int fragmentShaderSize;
 
     Topology topology;
 

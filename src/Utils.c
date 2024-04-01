@@ -66,7 +66,12 @@ void *FileReadBytes(const char *filePath, int *size)
     *size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    void *buffer = malloc(*size);
+    int alignedSize = *size;
+
+    if (*size % 4 != 0)
+        alignedSize += 4 - (*size % 4);
+
+    void *buffer = malloc(alignedSize);
     fread(buffer, *size, 1, file);
 
     fclose(file);

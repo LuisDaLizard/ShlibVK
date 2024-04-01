@@ -4,9 +4,9 @@ project(ShlibVK C)
 option(BUILD_EXAMPLES "Build all example projects" ON)
 
 add_subdirectory(libs/glfw)
-find_package(Vulkan COMPONENTS shaderc_combined)
+find_package(Vulkan COMPONENTS MoltenVK)
 
-set(CMAKE_C_STANDARD 90)
+set(CMAKE_C_STANDARD 23)
 
 set(SHLIBVK_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -32,7 +32,6 @@ set(INCLUDES
 set(LIBS
         glfw
         ${Vulkan_LIBRARIES}
-        ${Vulkan_shaderc_combined_LIBRARY}
         )
 
 add_library(${PROJECT_NAME} ${SOURCES})

@@ -42,8 +42,6 @@ struct sGraphics
     void *vkRenderFinishedSemaphore;
     void *vkInFlightFence;
     unsigned int vkImageIndex;
-
-    void *vkShaderCompiler;
 };
 
 typedef struct sGraphicsCreateInfo GraphicsCreateInfo;
