@@ -4,13 +4,19 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+void WindowResizeCallback(GLFWwindow *handle, int width, int height)
+{
+    Window window = (Window) glfwGetWindowUserPointer(handle);
+    window->width = width;
+    window->height = height;
+}
+
 bool WindowCreate(WindowCreateInfo *pCreateInfo, Window *pWindow)
 {
     if (!glfwInit())
         return false;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     GLFWwindow *handle = glfwCreateWindow(pCreateInfo->width, pCreateInfo->height, pCreateInfo->pTitle, NULL, NULL);
     if (!handle)
         return false;
@@ -19,6 +25,9 @@ bool WindowCreate(WindowCreateInfo *pCreateInfo, Window *pWindow)
     window->width = pCreateInfo->width;
     window->height = pCreateInfo->height;
     window->pHandle = handle;
+
+    glfwSetWindowUserPointer(handle, window);
+    glfwSetFramebufferSizeCallback(handle, WindowResizeCallback);
 
     *pWindow = window;
 

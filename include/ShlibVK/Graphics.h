@@ -17,6 +17,9 @@ struct sGraphicsCreateInfo
 
 struct sGraphics
 {
+    unsigned int windowWidth, windowHeight;
+    Window window;
+
     void *vkInstance;
     void *vkDebugMessenger;
     void *vkPhysicalDevice;

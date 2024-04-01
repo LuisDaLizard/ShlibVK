@@ -52,8 +52,8 @@ void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
 void CreateDebugMessenger(Graphics graphics);
 void PickPhysicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
 void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
-void CreateSurface(Graphics graphics, Window window);
-void CreateSwapChain(Graphics graphics, Window window);
+void CreateSurface(Graphics graphics);
+void CreateSwapChain(Graphics graphics);
 void CreateImageViews(Graphics graphics);
 void CreateShaderCompiler(Graphics graphics);
 void CreateRenderPass(Graphics graphics);
@@ -61,20 +61,25 @@ void CreateFramebuffers(Graphics graphics);
 void CreateCommandPool(Graphics graphics);
 void CreateCommandBuffer(Graphics graphics);
 void CreateSyncObjects(Graphics graphics);
+void RecreateSwapChain(Graphics graphics);
+void CleanupSwapChain(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
 bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
 {
     Graphics graphics = malloc(sizeof(struct sGraphics));
+    graphics->window = pCreateInfo->window;
+    graphics->windowWidth = graphics->window->width;
+    graphics->windowHeight = graphics->window->height;
 
     CreateInstance(pCreateInfo, graphics);
     if (pCreateInfo->debug)
         CreateDebugMessenger(graphics);
-    CreateSurface(graphics, pCreateInfo->window);
+    CreateSurface(graphics);
     PickPhysicalDevice(pCreateInfo, graphics);
     CreateLogicalDevice(pCreateInfo, graphics);
-    CreateSwapChain(graphics, pCreateInfo->window);
+    CreateSwapChain(graphics);
     CreateImageViews(graphics);
     CreateShaderCompiler(graphics);
     CreateRenderPass(graphics);
@@ -94,21 +99,16 @@ void GraphicsDestroy(Graphics graphics)
 
     vkDeviceWaitIdle(graphics->vkDevice);
 
+    shaderc_compiler_release(graphics->vkShaderCompiler);
+
+    CleanupSwapChain(graphics);
+
     vkDestroySemaphore(graphics->vkDevice, graphics->vkImageAvailableSemaphore, NULL);
     vkDestroySemaphore(graphics->vkDevice, graphics->vkRenderFinishedSemaphore, NULL);
     vkDestroyFence(graphics->vkDevice, graphics->vkInFlightFence, NULL);
 
     vkDestroyCommandPool(graphics->vkDevice, graphics->vkCommandPool, NULL);
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
-        vkDestroyFramebuffer(graphics->vkDevice, graphics->vkSwapChainFramebuffers[i], NULL);
     vkDestroyRenderPass(graphics->vkDevice, graphics->vkRenderPass, NULL);
-    shaderc_compiler_release(graphics->vkShaderCompiler);
-    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
-        vkDestroyImageView(graphics->vkDevice, graphics->vkSwapChainImageViews[i], NULL);
-    free(graphics->vkSwapChainImageViews);
-    free(graphics->vkSwapChainImages);
-
-    vkDestroySwapchainKHR(graphics->vkDevice, graphics->vkSwapChain, NULL);
     vkDestroyDevice(graphics->vkDevice, NULL);
     vkDestroySurfaceKHR(graphics->vkInstance, graphics->vkSurface, NULL);
     if (graphics->vkDebugMessenger)
@@ -122,7 +122,17 @@ void GraphicsBeginRenderPass(Graphics graphics)
     vkWaitForFences(graphics->vkDevice, 1, (VkFence *)&graphics->vkInFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(graphics->vkDevice, 1, (VkFence *)&graphics->vkInFlightFence);
 
-    vkAcquireNextImageKHR(graphics->vkDevice, graphics->vkSwapChain, UINT64_MAX, graphics->vkImageAvailableSemaphore, VK_NULL_HANDLE, &graphics->vkImageIndex);
+    VkResult result = vkAcquireNextImageKHR(graphics->vkDevice, graphics->vkSwapChain, UINT64_MAX, graphics->vkImageAvailableSemaphore, VK_NULL_HANDLE, &graphics->vkImageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        RecreateSwapChain(graphics);
+        result = vkAcquireNextImageKHR(graphics->vkDevice, graphics->vkSwapChain, UINT64_MAX, graphics->vkImageAvailableSemaphore, VK_NULL_HANDLE, &graphics->vkImageIndex);
+    }
+
+    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        WriteError(1, "Failed to acquire swap chain image");
+
     vkResetCommandBuffer(graphics->vkCommandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo = { 0 };
@@ -130,7 +140,7 @@ void GraphicsBeginRenderPass(Graphics graphics)
     beginInfo.flags = 0; // Optional
     beginInfo.pInheritanceInfo = NULL; // Optional
 
-    VkResult result = vkBeginCommandBuffer(graphics->vkCommandBuffer, &beginInfo);
+    result = vkBeginCommandBuffer(graphics->vkCommandBuffer, &beginInfo);
     if (result != VK_SUCCESS)
         WriteError(1, "Failed to begin recording command buffer");
 
@@ -198,7 +208,16 @@ void GraphicsEndRenderPass(Graphics graphics)
     presentInfo.pImageIndices = &graphics->vkImageIndex;
     presentInfo.pResults = NULL; // Optional
 
-    vkQueuePresentKHR(graphics->vkPresentQueue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(graphics->vkPresentQueue, &presentInfo);
+
+    bool resize = false;
+
+    resize = graphics->window->width != graphics->windowWidth || graphics->window->height != graphics->windowHeight;
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || resize)
+        RecreateSwapChain(graphics);
+    else if (result != VK_SUCCESS)
+        WriteError(1, "Failed to present swap chain image");
 }
 
 void GraphicsBindPipeline(Graphics graphics, Pipeline pipeline)
@@ -339,20 +358,20 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
     vkGetDeviceQueue(graphics->vkDevice, indices.present, 0, (VkQueue *)&graphics->vkPresentQueue);
 }
 
-void CreateSurface(Graphics graphics, Window window)
+void CreateSurface(Graphics graphics)
 {
-    VkResult result = glfwCreateWindowSurface(graphics->vkInstance, window->pHandle, NULL, (VkSurfaceKHR *)&graphics->vkSurface);
+    VkResult result = glfwCreateWindowSurface(graphics->vkInstance, graphics->window->pHandle, NULL, (VkSurfaceKHR *)&graphics->vkSurface);
     if (result != VK_SUCCESS)
         WriteError(1, "Failed to create window surface");
 }
 
-void CreateSwapChain(Graphics graphics, Window window)
+void CreateSwapChain(Graphics graphics)
 {
     SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(graphics, graphics->vkPhysicalDevice);
 
     VkSurfaceFormatKHR surfaceFormat = ChooseSwapSurfaceFormat(swapChainSupport.pFormats, swapChainSupport.formatCount);
     VkPresentModeKHR presentMode = ChooseSwapPresentMode(swapChainSupport.pPresentModes, swapChainSupport.presentModeCount);
-    VkExtent2D extent = ChooseSwapExtent(window, swapChainSupport.capabilities);
+    VkExtent2D extent = ChooseSwapExtent(graphics->window, swapChainSupport.capabilities);
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
     if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
@@ -402,6 +421,9 @@ void CreateSwapChain(Graphics graphics, Window window)
     graphics->vkSwapChainImageFormat = surfaceFormat.format;
     graphics->vkSwapChainImageWidth = extent.width;
     graphics->vkSwapChainImageHeight = extent.height;
+
+    free(swapChainSupport.pFormats);
+    free(swapChainSupport.pPresentModes);
 }
 
 void CreateImageViews(Graphics graphics)
@@ -546,6 +568,40 @@ void CreateSyncObjects(Graphics graphics)
         WriteError(1, "Failed to create semaphores and fences");
 }
 
+void RecreateSwapChain(Graphics graphics)
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(graphics->window->pHandle, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(graphics->window->pHandle, &width, &height);
+        glfwWaitEvents();
+    }
+
+    vkDeviceWaitIdle(graphics->vkDevice);
+
+    CleanupSwapChain(graphics);
+
+    CreateSwapChain(graphics);
+    CreateImageViews(graphics);
+    CreateFramebuffers(graphics);
+}
+
+void CleanupSwapChain(Graphics graphics)
+{
+    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+        vkDestroyFramebuffer(graphics->vkDevice, graphics->vkSwapChainFramebuffers[i], NULL);
+
+    for (int i = 0; i < graphics->vkSwapChainImageCount; i++)
+        vkDestroyImageView(graphics->vkDevice, graphics->vkSwapChainImageViews[i], NULL);
+
+    vkDestroySwapchainKHR(graphics->vkDevice, graphics->vkSwapChain, NULL);
+
+    free(graphics->vkSwapChainImageViews);
+    free(graphics->vkSwapChainFramebuffers);
+    free(graphics->vkSwapChainImages);
+}
+
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
 {
     VkPhysicalDeviceProperties deviceProperties;
@@ -649,6 +705,7 @@ QueueFamilyIndices FindQueueFamilies(Graphics graphics, VkPhysicalDevice device)
         }
     }
 
+    free(queueFamilies);
     return indices;
 }
 
