@@ -11,12 +11,25 @@ typedef enum eTopology
     TOPOLOGY_PATCH_LIST = 10,
 } Topology;
 
+typedef enum eShaderStage
+{
+    STAGE_VERTEX = 0x01,
+    STAGE_FRAGMENT = 0x10,
+} ShaderStage;
+
 typedef struct sAttribute
 {
     unsigned int location;
     unsigned int components;
     unsigned int offset;
 } Attribute;
+
+typedef struct sDescriptor
+{
+    unsigned int location;
+    unsigned int count;
+    ShaderStage stage;
+} Descriptor;
 
 struct sPipelineCreateInfo
 {
@@ -28,12 +41,15 @@ struct sPipelineCreateInfo
     unsigned int stride;
     unsigned int attributeCount;
     Attribute *pAttributes;
+    unsigned int descriptorCount;
+    Descriptor *pDescriptors;
 };
 
 struct sPipeline
 {
     void *vkPipelineLayout;
     void *vkGraphicsPipeline;
+    void *vkDescriptorSetLayout;
 };
 
 typedef struct sPipelineCreateInfo PipelineCreateInfo;

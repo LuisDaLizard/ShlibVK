@@ -21,6 +21,7 @@ set(SOURCES
         src/Math/Vec2.c
         src/Math/Vec3.c
         src/Math/Vec4.c
+        src/Utilities/List.c
         )
 
 set(INCLUDES

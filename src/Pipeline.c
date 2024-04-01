@@ -151,16 +151,39 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     colorBlending.blendConstants[2] = 0.0f; // Optional
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
+    Pipeline pipeline = malloc(sizeof(struct sPipeline));
+
+    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding ) * pCreateInfo->descriptorCount);
+    for (int i = 0; i < pCreateInfo->descriptorCount; i++)
+    {
+        layouts[i].binding = pCreateInfo->pDescriptors[i].location;
+        layouts[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layouts[i].descriptorCount = pCreateInfo->pDescriptors[i].count;
+        layouts[i].stageFlags = pCreateInfo->pDescriptors[i].stage;
+        layouts[i].pImmutableSamplers = NULL;
+    }
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo = { 0 };
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = pCreateInfo->descriptorCount;
+    layoutInfo.pBindings = layouts;
+    VkResult result = vkCreateDescriptorSetLayout(graphics->vkDevice, &layoutInfo, NULL, (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create descriptor set layout");
+        return false;
+    }
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = { 0 };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    pipelineLayoutInfo.pSetLayouts = NULL; // Optional
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout; // Optional
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = NULL; // Optional
 
-    Pipeline pipeline = malloc(sizeof(struct sPipeline));
 
-    VkResult result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
+    result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
 
     if (result != VK_SUCCESS)
     {
@@ -204,6 +227,7 @@ void PipelineDestroy(Graphics graphics, Pipeline pipeline)
 {
     vkDeviceWaitIdle(graphics->vkDevice);
 
+    vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
     vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
     vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
 
