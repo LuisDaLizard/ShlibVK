@@ -10,6 +10,13 @@ typedef enum eTopology
     TOPOLOGY_PATCH_LIST = 10,
 } Topology;
 
+typedef struct sAttribute
+{
+    unsigned int location;
+    unsigned int components;
+    unsigned int offset;
+} Attribute;
+
 struct sPipelineCreateInfo
 {
     void *graphics;
@@ -18,6 +25,10 @@ struct sPipelineCreateInfo
     const char *pFragmentShaderCode;
 
     Topology topology;
+
+    unsigned int stride;
+    unsigned int attributeCount;
+    Attribute *pAttributes;
 };
 
 struct sPipeline

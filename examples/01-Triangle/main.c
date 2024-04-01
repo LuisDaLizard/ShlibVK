@@ -2,39 +2,52 @@
 #include <stdlib.h>
 
 const char *pVertexSource = "#version 450\n"
-                            "layout (location = 0) out vec3 fColor;\n"
-                            "vec2 positions[3] = vec2[](\n"
-                            "    vec2(0.0, -0.5),\n"
-                            "    vec2(0.5, 0.5),\n"
-                            "    vec2(-0.5, 0.5)\n"
-                            ");\n"
                             "\n"
-                            "vec3 colors[3] = vec3[](\n"
-                            "    vec3(1.0, 0.0, 0.0),\n"
-                            "    vec3(0.0, 1.0, 0.0),\n"
-                            "    vec3(0.0, 0.0, 1.0)\n"
-                            ");\n"
+                            "layout(location = 0) in vec2 aPosition;\n"
+                            "layout(location = 1) in vec3 aColor;\n"
+                            "\n"
+                            "layout(location = 0) out vec3 fColor;\n"
                             "\n"
                             "void main() {\n"
-                            "    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);\n"
-                            "    fColor = colors[gl_VertexIndex];\n"
+                            "    gl_Position = vec4(aPosition, 0.0, 1.0);\n"
+                            "    fColor = aColor;\n"
                             "}";
 const char *pFragmentSource = "#version 450\n"
                               "\n"
                               "layout(location = 0) in vec3 fColor;\n"
+                              "\n"
                               "layout(location = 0) out vec4 oColor;\n"
                               "\n"
                               "void main() {\n"
                               "    oColor = vec4(fColor, 1.0);\n"
                               "}";
 
+typedef struct sVertex
+{
+    float x;
+    float y;
+
+    float r;
+    float g;
+    float b;
+} Vertex;
+
+const Vertex vertices[] =
+        {
+                { 0.0f, -0.5f, 1.0f, 1.0f, 1.0f},
+                { 0.5f,  0.5f, 0.0f, 1.0f, 0.0f},
+                {-0.5f,  0.5f, 0.0f, 0.0f, 1.0f},
+        };
+
 Window gWindow;
 Graphics gGraphics;
 Pipeline gPipeline;
+Mesh gMesh;
 
 void InitWindow();
 void InitGraphics();
 void InitPipeline();
+void InitMesh();
 void Cleanup();
 
 int main()
@@ -42,6 +55,7 @@ int main()
     InitWindow();
     InitGraphics();
     InitPipeline();
+    InitMesh();
 
     while(!WindowShouldClose(gWindow))
     {
@@ -49,6 +63,9 @@ int main()
 
         GraphicsBeginRenderPass(gGraphics);
         GraphicsBindPipeline(gGraphics, gPipeline);
+
+        MeshDraw(gMesh);
+
         GraphicsEndRenderPass(gGraphics);
     }
 
@@ -79,17 +96,44 @@ void InitGraphics()
 
 void InitPipeline()
 {
+    Attribute position = { 0 };
+    position.location = 0;
+    position.offset = 0;
+    position.components = 2;
+
+    Attribute color = { 0 };
+    color.location = 1;
+    color.offset = offsetof(Vertex, r);
+    color.components = 3;
+
+    Attribute attributes[] = {position, color};
+
     PipelineCreateInfo createInfo = { 0 };
     createInfo.graphics = gGraphics;
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     createInfo.pVertexShaderCode = pVertexSource;
     createInfo.pFragmentShaderCode = pFragmentSource;
+    createInfo.attributeCount = 2;
+    createInfo.pAttributes = attributes;
+    createInfo.stride = sizeof(Vertex);
 
     PipelineCreate(&createInfo, &gPipeline);
 }
 
+void InitMesh()
+{
+    MeshCreateInfo createInfo = { 0 };
+    createInfo.stride = sizeof(Vertex);
+    createInfo.vertexCount = 3;
+    createInfo.pVertices = (float *)vertices;
+    createInfo.graphics = gGraphics;
+
+    MeshCreate(&createInfo, &gMesh);
+}
+
 void Cleanup()
 {
+    MeshDestroy(gMesh);
     PipelineDestroy(gPipeline);
     GraphicsDestroy(gGraphics);
     WindowDestroy(gWindow);

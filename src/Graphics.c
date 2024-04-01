@@ -175,9 +175,6 @@ void GraphicsBeginRenderPass(Graphics graphics)
 
 void GraphicsEndRenderPass(Graphics graphics)
 {
-    //TODO: Remove temporary draw call
-    vkCmdDraw(graphics->vkCommandBuffer, 3, 1, 0, 0);
-
     vkCmdEndRenderPass(graphics->vkCommandBuffer);
 
     if (vkEndCommandBuffer(graphics->vkCommandBuffer) != VK_SUCCESS)

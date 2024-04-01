@@ -15,6 +15,7 @@ set(SOURCES
         src/Graphics.c
         src/Utils.c
         src/Pipeline.c
+        src/Mesh.c
         )
 
 set(INCLUDES
