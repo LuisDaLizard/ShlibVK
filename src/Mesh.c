@@ -3,81 +3,61 @@
 
 #include <vulkan/vulkan.h>
 #include <stdlib.h>
-#include <string.h>
 
-unsigned int FindMemoryType(Mesh mesh, unsigned int typeFilter, VkMemoryPropertyFlags properties);
-
-bool MeshCreate(MeshCreateInfo *pCreateInfo, Mesh *pMesh)
+bool MeshCreate(Graphics graphics, MeshCreateInfo *pCreateInfo, Mesh *pMesh)
 {
     Mesh mesh = malloc(sizeof(struct sMesh));
-    mesh->graphics = pCreateInfo->graphics;
     mesh->vertexCount = pCreateInfo->vertexCount;
 
-    VkBufferCreateInfo bufferInfo = { 0 };
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = pCreateInfo->vertexCount * pCreateInfo->stride;
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    unsigned int size = mesh->vertexCount * pCreateInfo->stride;
 
-    VkResult result = vkCreateBuffer(pCreateInfo->graphics->vkDevice, &bufferInfo, NULL, (VkBuffer *)&mesh->vkBuffer);
+    Buffer stagingBuffer;
 
-    if (result != VK_SUCCESS)
-        return false;
+    BufferCreateInfo stagingInfo = { 0 };
+    stagingInfo.local = false;
+    stagingInfo.size = size;
+    stagingInfo.usage = USAGE_TRANSFER_SRC;
 
-    VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(mesh->graphics->vkDevice, mesh->vkBuffer, &memReqs);
-
-    VkMemoryAllocateInfo allocInfo = { 0 };
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReqs.size;
-    allocInfo.memoryTypeIndex = FindMemoryType(mesh, memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    result = vkAllocateMemory(mesh->graphics->vkDevice, &allocInfo, NULL, (VkDeviceMemory *)&mesh->vkDeviceMemory);
-    if (result != VK_SUCCESS)
+    if (!BufferCreate(graphics, &stagingInfo, &stagingBuffer))
     {
-        WriteWarning("Failed to allocate vertex buffer memory");
+        WriteWarning("Unable to create staging buffer");
         return false;
     }
 
-    vkBindBufferMemory(mesh->graphics->vkDevice, mesh->vkBuffer, mesh->vkDeviceMemory, 0);
+    BufferSetData(graphics, stagingBuffer, pCreateInfo->pVertices, size, 0);
 
-    void *data;
-    vkMapMemory(mesh->graphics->vkDevice, mesh->vkDeviceMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, pCreateInfo->pVertices, bufferInfo.size);
-    vkUnmapMemory(mesh->graphics->vkDevice, mesh->vkDeviceMemory);
+    BufferCreateInfo vertexInfo = { 0 };
+    vertexInfo.local = true;
+    vertexInfo.size = size;
+    vertexInfo.usage = USAGE_TRANSFER_DST | USAGE_VERTEX_BUFFER;
+
+    if (!BufferCreate(graphics, &vertexInfo, &mesh->vertexBuffer))
+    {
+        WriteWarning("Unable to create vertex buffer");
+        return false;
+    }
+
+    BufferCopy(graphics, stagingBuffer, mesh->vertexBuffer, size);
+
+    BufferDestroy(graphics, stagingBuffer);
 
     *pMesh = mesh;
     return true;
 }
 
-void MeshDestroy(Mesh mesh)
+void MeshDestroy(Graphics graphics, Mesh mesh)
 {
-    vkDeviceWaitIdle(mesh->graphics->vkDevice);
+    vkDeviceWaitIdle(graphics->vkDevice);
 
-    vkDestroyBuffer(mesh->graphics->vkDevice, mesh->vkBuffer, NULL);
-    vkFreeMemory(mesh->graphics->vkDevice, mesh->vkDeviceMemory, NULL);
+    BufferDestroy(graphics, mesh->vertexBuffer);
+
     free(mesh);
 }
 
-void MeshDraw(Mesh mesh)
+void MeshDraw(Graphics graphics, Mesh mesh)
 {
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(mesh->graphics->vkCommandBuffer, 0, 1, (VkBuffer *)&mesh->vkBuffer, &offset);
+    vkCmdBindVertexBuffers(graphics->vkCommandBuffer, 0, 1, (VkBuffer *)&mesh->vertexBuffer->vkBuffer, &offset);
 
-    vkCmdDraw(mesh->graphics->vkCommandBuffer, mesh->vertexCount, 1, 0, 0);
-}
-
-unsigned int FindMemoryType(Mesh mesh, unsigned int typeFilter, VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(mesh->graphics->vkPhysicalDevice, &memProperties);
-
-    for (unsigned int i = 0; i < memProperties.memoryTypeCount; i++)
-    {
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            return i;
-    }
-
-    WriteWarning("Failed to find suitable memory type");
-    return 0;
+    vkCmdDraw(graphics->vkCommandBuffer, mesh->vertexCount, 1, 0, 0);
 }

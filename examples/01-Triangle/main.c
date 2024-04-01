@@ -62,9 +62,9 @@ int main()
         WindowPollEvents(gWindow);
 
         GraphicsBeginRenderPass(gGraphics);
-        GraphicsBindPipeline(gGraphics, gPipeline);
+        PipelineBind(gGraphics, gPipeline);
 
-        MeshDraw(gMesh);
+        MeshDraw(gGraphics, gMesh);
 
         GraphicsEndRenderPass(gGraphics);
     }
@@ -109,7 +109,6 @@ void InitPipeline()
     Attribute attributes[] = {position, color};
 
     PipelineCreateInfo createInfo = { 0 };
-    createInfo.graphics = gGraphics;
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     createInfo.pVertexShaderCode = pVertexSource;
     createInfo.pFragmentShaderCode = pFragmentSource;
@@ -117,7 +116,7 @@ void InitPipeline()
     createInfo.pAttributes = attributes;
     createInfo.stride = sizeof(Vertex);
 
-    PipelineCreate(&createInfo, &gPipeline);
+    PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }
 
 void InitMesh()
@@ -126,15 +125,14 @@ void InitMesh()
     createInfo.stride = sizeof(Vertex);
     createInfo.vertexCount = 3;
     createInfo.pVertices = (float *)vertices;
-    createInfo.graphics = gGraphics;
 
-    MeshCreate(&createInfo, &gMesh);
+    MeshCreate(gGraphics, &createInfo, &gMesh);
 }
 
 void Cleanup()
 {
-    MeshDestroy(gMesh);
-    PipelineDestroy(gPipeline);
+    MeshDestroy(gGraphics, gMesh);
+    PipelineDestroy(gGraphics, gPipeline);
     GraphicsDestroy(gGraphics);
     WindowDestroy(gWindow);
 }

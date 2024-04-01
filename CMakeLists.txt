@@ -16,6 +16,11 @@ set(SOURCES
         src/Utils.c
         src/Pipeline.c
         src/Mesh.c
+        src/Buffer.c
+        src/Math/Matrix.c
+        src/Math/Vec2.c
+        src/Math/Vec3.c
+        src/Math/Vec4.c
         )
 
 set(INCLUDES

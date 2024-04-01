@@ -2,7 +2,6 @@
 #define SHLIBVK_GRAPHICS_H
 
 #include "Window.h"
-#include "Pipeline.h"
 #include <stdbool.h>
 
 struct sGraphicsCreateInfo
@@ -55,7 +54,5 @@ void GraphicsDestroy(Graphics graphics);
 
 void GraphicsBeginRenderPass(Graphics graphics);
 void GraphicsEndRenderPass(Graphics graphics);
-
-void GraphicsBindPipeline(Graphics graphics, Pipeline pipeline);
 
 #endif //SHLIBVK_GRAPHICS_H

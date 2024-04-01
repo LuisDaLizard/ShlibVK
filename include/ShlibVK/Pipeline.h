@@ -1,6 +1,7 @@
 #ifndef SHLIBVK_PIPELINE_H
 #define SHLIBVK_PIPELINE_H
 
+#include "Graphics.h"
 #include <stdbool.h>
 
 typedef enum eTopology
@@ -19,8 +20,6 @@ typedef struct sAttribute
 
 struct sPipelineCreateInfo
 {
-    void *graphics;
-
     const char *pVertexShaderCode;
     const char *pFragmentShaderCode;
 
@@ -33,7 +32,6 @@ struct sPipelineCreateInfo
 
 struct sPipeline
 {
-    void *vkDevice;
     void *vkPipelineLayout;
     void *vkGraphicsPipeline;
 };
@@ -41,7 +39,9 @@ struct sPipeline
 typedef struct sPipelineCreateInfo PipelineCreateInfo;
 typedef struct sPipeline *Pipeline;
 
-bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline);
-void PipelineDestroy(Pipeline pipeline);
+bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline);
+void PipelineDestroy(Graphics graphics, Pipeline pipeline);
+
+void PipelineBind(Graphics graphics, Pipeline pipeline);
 
 #endif //SHLIBVK_PIPELINE_H

@@ -217,11 +217,6 @@ void GraphicsEndRenderPass(Graphics graphics)
         WriteError(1, "Failed to present swap chain image");
 }
 
-void GraphicsBindPipeline(Graphics graphics, Pipeline pipeline)
-{
-    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
-}
-
 void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
 {
     VkApplicationInfo appInfo = { 0 };

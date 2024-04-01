@@ -6,17 +6,15 @@
 #include <string.h>
 #include <stdlib.h>
 
-const unsigned int *CompileShaderSource(PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType);
+const unsigned int *CompileShaderSource(Graphics graphics, PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType);
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, int shaderCodeSize);
 
-bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
+bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
-    Graphics graphics = pCreateInfo->graphics;
-
     int vertexCodeSize = 0;
     int fragmentCodeSize = 0;
-    const unsigned int *vertexCode = CompileShaderSource(pCreateInfo, pCreateInfo->pVertexShaderCode, &vertexCodeSize, shaderc_glsl_vertex_shader);
-    const unsigned int *fragmentCode = CompileShaderSource(pCreateInfo, pCreateInfo->pFragmentShaderCode, &fragmentCodeSize, shaderc_glsl_fragment_shader);
+    const unsigned int *vertexCode = CompileShaderSource(graphics, pCreateInfo, pCreateInfo->pVertexShaderCode, &vertexCodeSize, shaderc_glsl_vertex_shader);
+    const unsigned int *fragmentCode = CompileShaderSource(graphics, pCreateInfo, pCreateInfo->pFragmentShaderCode, &fragmentCodeSize, shaderc_glsl_fragment_shader);
 
     if (!vertexCode || !fragmentCode)
         return false;
@@ -161,7 +159,6 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     pipelineLayoutInfo.pPushConstantRanges = NULL; // Optional
 
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
-    pipeline->vkDevice = graphics->vkDevice;
 
     VkResult result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
 
@@ -203,19 +200,26 @@ bool PipelineCreate(PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
     return true;
 }
 
-void PipelineDestroy(Pipeline pipeline)
+void PipelineDestroy(Graphics graphics, Pipeline pipeline)
 {
-    vkDeviceWaitIdle(pipeline->vkDevice);
+    vkDeviceWaitIdle(graphics->vkDevice);
 
-    vkDestroyPipeline(pipeline->vkDevice, pipeline->vkGraphicsPipeline, NULL);
-    vkDestroyPipelineLayout(pipeline->vkDevice, pipeline->vkPipelineLayout, NULL);
+    vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
+    vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
+
+    free(pipeline);
 }
 
-const unsigned int *CompileShaderSource(PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType)
+void PipelineBind(Graphics graphics, Pipeline pipeline)
+{
+    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
+}
+
+const unsigned int *CompileShaderSource(Graphics graphics, PipelineCreateInfo *pCreateInfo, const char *pSource, int *pCodeSize, unsigned int shaderType)
 {
     int sourceSize = (int)strlen(pSource);
 
-    shaderc_compilation_result_t result = shaderc_compile_into_spv(((Graphics)pCreateInfo->graphics)->vkShaderCompiler, pSource, sourceSize, shaderType, "Shader", "main", NULL);
+    shaderc_compilation_result_t result = shaderc_compile_into_spv(graphics->vkShaderCompiler, pSource, sourceSize, shaderType, "Shader", "main", NULL);
 
     // Error checking result
     shaderc_compilation_status status = shaderc_result_get_compilation_status(result);

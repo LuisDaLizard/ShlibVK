@@ -2,11 +2,10 @@
 #define SHLIBVK_MESH_H
 
 #include "Graphics.h"
+#include "Buffer.h"
 
 struct sMeshCreateInfo
 {
-    Graphics graphics;
-
     unsigned int stride;
     unsigned int vertexCount;
 
@@ -15,20 +14,17 @@ struct sMeshCreateInfo
 
 struct sMesh
 {
-    Graphics graphics;
-
     unsigned int vertexCount;
 
-    void *vkBuffer;
-    void *vkDeviceMemory;
+    Buffer vertexBuffer;
 };
 
 typedef struct sMeshCreateInfo MeshCreateInfo;
 typedef struct sMesh *Mesh;
 
-bool MeshCreate(MeshCreateInfo *pCreateInfo, Mesh *pMesh);
-void MeshDestroy(Mesh mesh);
+bool MeshCreate(Graphics graphics, MeshCreateInfo *pCreateInfo, Mesh *pMesh);
+void MeshDestroy(Graphics graphics, Mesh mesh);
 
-void MeshDraw(Mesh mesh);
+void MeshDraw(Graphics graphics, Mesh mesh);
 
 #endif //SHLIBVK_MESH_H
