@@ -3,7 +3,7 @@
 #include "ShlibVK/Window.h"
 
 
-#ifdef __WIN32__
+#ifdef WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
 #define GLFW_EXPOSE_NATIVE_WIN32
 #endif
@@ -22,8 +22,14 @@
 #include <string.h>
 
 const char *ValidationLayers[] = { "VK_LAYER_KHRONOS_validation" };
+#ifdef WIN32
+const unsigned int RequiredDeviceExtensionCount = 1;
+const char *RequiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+#endif
+#ifdef __APPLE__
 const unsigned int RequiredDeviceExtensionCount = 2;
 const char *RequiredDeviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_portability_subset"};
+#endif
 
 typedef struct sQueueFamilyIndices
 {
@@ -70,6 +76,7 @@ void CreateCommandBuffer(Graphics graphics);
 void CreateSyncObjects(Graphics graphics);
 void RecreateSwapChain(Graphics graphics);
 void CleanupSwapChain(Graphics graphics);
+void CreateDescriptorPool(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -93,6 +100,7 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateCommandPool(graphics);
     CreateCommandBuffer(graphics);
     CreateSyncObjects(graphics);
+    CreateDescriptorPool(graphics);
 
     *pGraphics = graphics;
     return true;
@@ -104,6 +112,8 @@ void GraphicsDestroy(Graphics graphics)
         return;
 
     vkDeviceWaitIdle(graphics->vkDevice);
+
+    vkDestroyDescriptorPool(graphics->vkDevice, graphics->vkDescriptorPool, NULL);
 
     CleanupSwapChain(graphics);
 
@@ -241,7 +251,9 @@ void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
         createInfo.enabledLayerCount = 1;
         createInfo.ppEnabledLayerNames = ValidationLayers;
     }
+#ifdef __APPLE__
     createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
 
     VkResult result = vkCreateInstance(&createInfo, NULL, (VkInstance*)&graphics->vkInstance);
     if (result != VK_SUCCESS)
@@ -597,6 +609,26 @@ void CleanupSwapChain(Graphics graphics)
     free(graphics->vkSwapChainImageViews);
     free(graphics->vkSwapChainFramebuffers);
     free(graphics->vkSwapChainImages);
+}
+
+void CreateDescriptorPool(Graphics graphics)
+{
+    VkDescriptorPoolSize poolSize = { 0 };
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSize.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo = { 0 };
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = 1;
+
+    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&graphics->vkDescriptorPool);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteError(1, "Failed to create descriptor pool");
+    }
 }
 
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)

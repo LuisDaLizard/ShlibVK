@@ -8,6 +8,7 @@ typedef enum eBufferUsage
 {
     USAGE_TRANSFER_SRC = 0x01,
     USAGE_TRANSFER_DST = 0x02,
+    USAGE_UNIFORM_BUFFER = 0x10,
     USAGE_INDEX_BUFFER = 0x40,
     USAGE_VERTEX_BUFFER = 0x80,
 } BufferUsage;
@@ -17,6 +18,7 @@ struct sBufferCreateInfo
     unsigned int size;
     BufferUsage usage;
     bool local;
+    bool persistent;
 };
 
 struct sBuffer
@@ -25,6 +27,7 @@ struct sBuffer
 
     void *vkBuffer;
     void *vkDeviceMemory;
+    void *pMappedData;
 };
 
 typedef struct sBufferCreateInfo BufferCreateInfo;

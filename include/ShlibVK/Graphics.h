@@ -37,6 +37,7 @@ struct sGraphics
 
     void *vkRenderPass;
     void *vkCommandPool;
+    void *vkDescriptorPool;
     void *vkCommandBuffer;
     void *vkImageAvailableSemaphore;
     void *vkRenderFinishedSemaphore;

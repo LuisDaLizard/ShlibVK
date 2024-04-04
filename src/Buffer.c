@@ -11,6 +11,8 @@ unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemory
 bool BufferCreate(Graphics graphics, BufferCreateInfo *pCreateInfo, Buffer *pBuffer)
 {
     Buffer buffer = malloc(sizeof(struct sBuffer));
+    buffer->pMappedData = NULL;
+    buffer->size = pCreateInfo->size;
 
     VkBufferCreateInfo bufferInfo = { 0 };
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -43,6 +45,9 @@ bool BufferCreate(Graphics graphics, BufferCreateInfo *pCreateInfo, Buffer *pBuf
     }
 
     vkBindBufferMemory(graphics->vkDevice, buffer->vkBuffer, buffer->vkDeviceMemory, 0);
+
+    if (pCreateInfo->persistent)
+        vkMapMemory(graphics->vkDevice, buffer->vkDeviceMemory, 0, pCreateInfo->size, 0, &buffer->pMappedData);
 
     *pBuffer = buffer;
     return true;

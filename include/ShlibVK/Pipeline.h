@@ -2,6 +2,7 @@
 #define SHLIBVK_PIPELINE_H
 
 #include "Graphics.h"
+#include "UniformBuffer.h"
 #include <stdbool.h>
 
 typedef enum eTopology
@@ -45,6 +46,9 @@ struct sPipelineCreateInfo
     Attribute *pAttributes;
     unsigned int descriptorCount;
     Descriptor *pDescriptors;
+
+    unsigned int uniformBufferCount;
+    UniformBuffer *pUniformBuffers;
 };
 
 struct sPipeline
@@ -52,6 +56,7 @@ struct sPipeline
     void *vkPipelineLayout;
     void *vkGraphicsPipeline;
     void *vkDescriptorSetLayout;
+    void *vkDescriptorSet;
 };
 
 typedef struct sPipelineCreateInfo PipelineCreateInfo;

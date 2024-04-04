@@ -90,13 +90,15 @@ void InitPipeline()
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     int size = 0;
-    createInfo.pVertexShaderCode = FileReadBytes("../resources/bin/triangle.vert", &size);
+    createInfo.pVertexShaderCode = FileReadBytes("../../resources/bin/triangle.vert", &size);
     createInfo.vertexShaderSize = size;
-    createInfo.pFragmentShaderCode = FileReadBytes("../resources/bin/triangle.frag", &size);
+    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/triangle.frag", &size);
     createInfo.fragmentShaderSize = size;
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
     createInfo.stride = sizeof(Vertex);
+    createInfo.uniformBufferCount = 0;
+    createInfo.pUniformBuffers = NULL;
 
     PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }

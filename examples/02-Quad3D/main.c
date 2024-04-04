@@ -1,34 +1,16 @@
 #include <ShlibVK/ShlibVK.h>
 #include <stdio.h>
 
-const char *vertSource = "#version 450\n"
-                         "\n"
-                         "layout(location = 0) in vec3 aPosition;\n"
-                         "\n"
-                         "layout(binding = 0) uniform UniformBuffer\n"
-                         "{\n"
-                         "\tmat4 uView;\n"
-                         "\tmat4 uProjection;\n"
-                         "} Uniforms;\n"
-                         "\n"
-                         "void main()\n"
-                         "{\n"
-                         "\tgl_Position = Uniforms.uProjection * Uniforms.uView * vec4(aPosition, 1);\n"
-                         "}";
-
-const char *fragSource = "#version 450\n"
-                         "\n"
-                         "layout(location = 0) out vec4 oColor;\n"
-                         "\n"
-                         "void main()\n"
-                         "{\n"
-                         "\toColor = vec4(1, 1, 1, 1);\n"
-                         "}";
-
 typedef struct sVertex
 {
     Vec3 position;
 } Vertex;
+
+typedef struct sUniformMatrices
+{
+    Matrix projection;
+    Matrix view;
+} UniformMatrices;
 
 const Vertex vertices[] =
         {
@@ -41,6 +23,8 @@ Window gWindow;
 Graphics gGraphics;
 Pipeline gPipeline;
 Mesh gMesh;
+UniformBuffer gUniformBuffer;
+UniformMatrices gUniforms;
 
 void InitWindow();
 void InitGraphics();
@@ -50,6 +34,9 @@ void Cleanup();
 
 int main()
 {
+    gUniforms.projection = MatrixPerspective(800.0f / 600.0f, 45, 0.01f, 1000.0f);
+    gUniforms.view = MatrixLookAt((Vec3){0, 1, 5}, (Vec3){0, 0, 0}, (Vec3){0, 1, 0});
+
     InitWindow();
     InitGraphics();
     InitPipeline();
@@ -76,7 +63,7 @@ void InitWindow()
     WindowCreateInfo createInfo = { 0 };
     createInfo.width = 800;
     createInfo.height = 600;
-    createInfo.pTitle = "01 - Triangle";
+    createInfo.pTitle = "02 - Quad 3D";
 
     WindowCreate(&createInfo, &gWindow);
 }
@@ -85,7 +72,7 @@ void InitGraphics()
 {
     GraphicsCreateInfo createInfo = { 0 };
     createInfo.debug = true;
-    createInfo.pAppName = "01 - Triangle";
+    createInfo.pAppName = "02 - Quad 3D";
     createInfo.pEngineName = "No Engine";
     createInfo.window = gWindow;
 
@@ -94,6 +81,13 @@ void InitGraphics()
 
 void InitPipeline()
 {
+    UniformBufferCreateInfo bufferInfo = { 0 };
+    bufferInfo.binding = 0;
+    bufferInfo.size = sizeof(UniformMatrices);
+
+    UniformBufferCreate(gGraphics, &bufferInfo, &gUniformBuffer);
+    UniformBufferSetData(gUniformBuffer, &gUniforms, sizeof(UniformMatrices));
+
     Descriptor matrices = { 0 };
     matrices.location = 0;
     matrices.count = 1;
@@ -106,13 +100,18 @@ void InitPipeline()
 
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
-    createInfo.pVertexShaderCode = vertSource;
-    createInfo.pFragmentShaderCode = fragSource;
+    int size = 0;
+    createInfo.pVertexShaderCode = FileReadBytes("../../resources/bin/quad.vert", &size);
+    createInfo.vertexShaderSize = size;
+    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/quad.frag", &size);
+    createInfo.fragmentShaderSize = size;
     createInfo.attributeCount = 1;
     createInfo.pAttributes = &position;
     createInfo.descriptorCount = 1;
     createInfo.pDescriptors = &matrices;
     createInfo.stride = sizeof(Vertex);
+    createInfo.uniformBufferCount = 1;
+    createInfo.pUniformBuffers = &gUniformBuffer;
 
     PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }
@@ -129,6 +128,7 @@ void InitMesh()
 
 void Cleanup()
 {
+    UniformBufferDestroy(gGraphics, gUniformBuffer);
     MeshDestroy(gGraphics, gMesh);
     PipelineDestroy(gGraphics, gPipeline);
     GraphicsDestroy(gGraphics);

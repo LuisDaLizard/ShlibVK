@@ -8,25 +8,155 @@
 #include <stdlib.h>
 
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
+bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
+bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
+bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader);
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
     if (!pCreateInfo->pVertexShaderCode || !pCreateInfo->pFragmentShaderCode)
         return false;
 
+    Pipeline pipeline = malloc(sizeof(struct sPipeline));
+
     VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
     VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
 
+    if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo))
+        return false;
+
+    if (!CreatePipeline(graphics, pipeline, pCreateInfo, vertex, fragment))
+        return false;
+
+    if (!CreateDescriptorSets(graphics, pipeline, pCreateInfo))
+        return false;
+
+    vkDestroyShaderModule(graphics->vkDevice, vertex, NULL);
+    vkDestroyShaderModule(graphics->vkDevice, fragment, NULL);
+
+    *pPipeline = pipeline;
+    return true;
+}
+
+void PipelineDestroy(Graphics graphics, Pipeline pipeline)
+{
+    vkDeviceWaitIdle(graphics->vkDevice);
+
+    vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
+    vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
+    vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
+
+    free(pipeline);
+}
+
+void PipelineBind(Graphics graphics, Pipeline pipeline)
+{
+    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
+    vkCmdBindDescriptorSets(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkPipelineLayout, 0, 1, (VkDescriptorSet *)&pipeline->vkDescriptorSet, 0, NULL);
+}
+
+VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize)
+{
+    VkShaderModule shaderModule;
+
+    VkShaderModuleCreateInfo createInfo = { 0 };
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = shaderCodeSize;
+    createInfo.pCode = pShaderCode;
+
+    VkResult result = vkCreateShaderModule(graphics->vkDevice, &createInfo, NULL, &shaderModule);
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create shader module");
+        return 0;
+    }
+
+    return shaderModule;
+}
+
+bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
+{
+    int i;
+    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding ) * pCreateInfo->descriptorCount);
+    for (i = 0; i < pCreateInfo->descriptorCount; i++)
+    {
+        layouts[i].binding = pCreateInfo->pDescriptors[i].location;
+        layouts[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layouts[i].descriptorCount = pCreateInfo->pDescriptors[i].count;
+        layouts[i].stageFlags = pCreateInfo->pDescriptors[i].stage;
+        layouts[i].pImmutableSamplers = NULL;
+    }
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo = { 0 };
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = pCreateInfo->descriptorCount;
+    layoutInfo.pBindings = layouts;
+    VkResult result = vkCreateDescriptorSetLayout(graphics->vkDevice, &layoutInfo, NULL, (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create descriptor set layout");
+        return false;
+    }
+
+    free(layouts);
+
+    return true;
+}
+
+bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
+{
+    VkDescriptorSetAllocateInfo allocInfo = { 0 };
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = graphics->vkDescriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout;
+
+    VkResult result = vkAllocateDescriptorSets(graphics->vkDevice, &allocInfo, (VkDescriptorSet *)&pipeline->vkDescriptorSet);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create descriptor set!");
+        return false;
+    }
+
+    int i;
+    for (i = 0; i < pCreateInfo->uniformBufferCount; i++)
+    {
+        VkDescriptorBufferInfo bufferInfo = { 0 };
+        bufferInfo.buffer = pCreateInfo->pUniformBuffers[i]->buffer->vkBuffer;
+        bufferInfo.offset = 0;
+        bufferInfo.range = pCreateInfo->pUniformBuffers[i]->buffer->size;
+
+        VkWriteDescriptorSet descriptorWrite = { 0 };
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = pipeline->vkDescriptorSet;
+        descriptorWrite.dstBinding = pCreateInfo->pUniformBuffers[i]->binding;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+        descriptorWrite.pImageInfo = NULL; // Optional
+        descriptorWrite.pTexelBufferView = NULL; // Optional
+
+        vkUpdateDescriptorSets(graphics->vkDevice, 1, &descriptorWrite, 0, NULL);
+    }
+
+    return true;
+}
+
+bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader)
+{
     VkPipelineShaderStageCreateInfo vertexStage = { 0 };
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexStage.module = vertex;
+    vertexStage.module = vertShader;
     vertexStage.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragmentStage = { 0 };
     fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentStage.module = fragment;
+    fragmentStage.module = fragShader;
     fragmentStage.pName = "main";
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertexStage, fragmentStage};
@@ -111,7 +241,7 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f; // Optional
     rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -147,29 +277,8 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     colorBlending.blendConstants[2] = 0.0f; // Optional
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
-    Pipeline pipeline = malloc(sizeof(struct sPipeline));
 
-    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding ) * pCreateInfo->descriptorCount);
-    for (i = 0; i < pCreateInfo->descriptorCount; i++)
-    {
-        layouts[i].binding = pCreateInfo->pDescriptors[i].location;
-        layouts[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        layouts[i].descriptorCount = pCreateInfo->pDescriptors[i].count;
-        layouts[i].stageFlags = pCreateInfo->pDescriptors[i].stage;
-        layouts[i].pImmutableSamplers = NULL;
-    }
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo = { 0 };
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = pCreateInfo->descriptorCount;
-    layoutInfo.pBindings = layouts;
-    VkResult result = vkCreateDescriptorSetLayout(graphics->vkDevice, &layoutInfo, NULL, (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout);
-
-    if (result != VK_SUCCESS)
-    {
-        WriteWarning("Failed to create descriptor set layout");
-        return false;
-    }
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = { 0 };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -179,7 +288,7 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     pipelineLayoutInfo.pPushConstantRanges = NULL; // Optional
 
 
-    result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
+    VkResult result = vkCreatePipelineLayout(graphics->vkDevice, &pipelineLayoutInfo, NULL, (VkPipelineLayout *)&pipeline->vkPipelineLayout);
 
     if (result != VK_SUCCESS)
     {
@@ -212,44 +321,5 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
         return false;
     }
 
-    vkDestroyShaderModule(graphics->vkDevice, vertex, NULL);
-    vkDestroyShaderModule(graphics->vkDevice, fragment, NULL);
-
-    *pPipeline = pipeline;
     return true;
-}
-
-void PipelineDestroy(Graphics graphics, Pipeline pipeline)
-{
-    vkDeviceWaitIdle(graphics->vkDevice);
-
-    vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
-    vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
-    vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
-
-    free(pipeline);
-}
-
-void PipelineBind(Graphics graphics, Pipeline pipeline)
-{
-    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
-}
-
-VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize)
-{
-    VkShaderModule shaderModule;
-
-    VkShaderModuleCreateInfo createInfo = { 0 };
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = shaderCodeSize;
-    createInfo.pCode = pShaderCode;
-
-    VkResult result = vkCreateShaderModule(graphics->vkDevice, &createInfo, NULL, &shaderModule);
-    if (result != VK_SUCCESS)
-    {
-        WriteWarning("Failed to create shader module");
-        return 0;
-    }
-
-    return shaderModule;
 }
