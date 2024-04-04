@@ -63,7 +63,7 @@ void InitWindow()
     WindowCreateInfo createInfo = { 0 };
     createInfo.width = 800;
     createInfo.height = 600;
-    createInfo.pTitle = "02 - Quad 3D";
+    createInfo.pTitle = "02 - Triangle 3D";
 
     WindowCreate(&createInfo, &gWindow);
 }
@@ -72,7 +72,7 @@ void InitGraphics()
 {
     GraphicsCreateInfo createInfo = { 0 };
     createInfo.debug = true;
-    createInfo.pAppName = "02 - Quad 3D";
+    createInfo.pAppName = "02 - Triangle 3D";
     createInfo.pEngineName = "No Engine";
     createInfo.window = gWindow;
 
@@ -105,11 +105,11 @@ void InitPipeline()
     createInfo.vertexShaderSize = size;
     createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/quad.frag", &size);
     createInfo.fragmentShaderSize = size;
+    createInfo.stride = sizeof(Vertex);
     createInfo.attributeCount = 1;
     createInfo.pAttributes = &position;
     createInfo.descriptorCount = 1;
     createInfo.pDescriptors = &matrices;
-    createInfo.stride = sizeof(Vertex);
     createInfo.uniformBufferCount = 1;
     createInfo.pUniformBuffers = &gUniformBuffer;
 
