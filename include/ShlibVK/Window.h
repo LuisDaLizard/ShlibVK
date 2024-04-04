@@ -3,11 +3,17 @@
 
 #include <stdbool.h>
 
+typedef void (*ResizeCallback)(void *pUserData, int width, int height);
+
 struct sWindowCreateInfo
 {
     int width;
     int height;
     const char *pTitle;
+
+    void *pUserData;
+
+    ResizeCallback resizeCallback;
 };
 
 struct sWindow
@@ -15,6 +21,10 @@ struct sWindow
     int width;
     int height;
     void *pHandle;
+
+    void *pUserData;
+
+    ResizeCallback resizeCallback;
 };
 
 typedef struct sWindowCreateInfo WindowCreateInfo;

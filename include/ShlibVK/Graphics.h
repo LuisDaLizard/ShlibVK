@@ -25,6 +25,7 @@ struct sGraphics
     void *vkDevice;
     void *vkGraphicsQueue, *vkPresentQueue;
     void *vkSurface;
+    unsigned int vkGraphicsQueueIndex, vkPresentQueueIndex;
 
     void *vkSwapChain;
     void **vkSwapChainImages;

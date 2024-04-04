@@ -364,6 +364,9 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
     if (result != VK_SUCCESS)
         WriteError(1, "Unable to create logical device");
 
+    graphics->vkGraphicsQueueIndex = indices.graphics;
+    graphics->vkPresentQueueIndex = indices.present;
+
     vkGetDeviceQueue(graphics->vkDevice, indices.graphics, 0, (VkQueue *)&graphics->vkGraphicsQueue);
     vkGetDeviceQueue(graphics->vkDevice, indices.present, 0, (VkQueue *)&graphics->vkPresentQueue);
 }

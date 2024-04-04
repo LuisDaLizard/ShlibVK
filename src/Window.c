@@ -9,6 +9,9 @@ void WindowResizeCallback(GLFWwindow *handle, int width, int height)
     Window window = (Window) glfwGetWindowUserPointer(handle);
     window->width = width;
     window->height = height;
+
+    if (window->resizeCallback)
+        window->resizeCallback(window->pUserData, width, height);
 }
 
 bool WindowCreate(WindowCreateInfo *pCreateInfo, Window *pWindow)
@@ -25,6 +28,8 @@ bool WindowCreate(WindowCreateInfo *pCreateInfo, Window *pWindow)
     window->width = pCreateInfo->width;
     window->height = pCreateInfo->height;
     window->pHandle = handle;
+    window->pUserData = pCreateInfo->pUserData;
+    window->resizeCallback = pCreateInfo->resizeCallback;
 
     glfwSetWindowUserPointer(handle, window);
     glfwSetFramebufferSizeCallback(handle, WindowResizeCallback);
