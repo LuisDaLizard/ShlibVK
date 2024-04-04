@@ -151,8 +151,7 @@ void GraphicsBeginRenderPass(Graphics graphics)
 
     VkCommandBufferBeginInfo beginInfo = { 0 };
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = 0; // Optional
-    beginInfo.pInheritanceInfo = NULL; // Optional
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     result = vkBeginCommandBuffer(graphics->vkCommandBuffer, &beginInfo);
     if (result != VK_SUCCESS)
@@ -229,6 +228,40 @@ void GraphicsEndRenderPass(Graphics graphics)
         RecreateSwapChain(graphics);
     else if (result != VK_SUCCESS)
         WriteError(1, "Failed to present swap chain image");
+}
+
+void *GraphicsBeginSingleUseCommand(Graphics graphics)
+{
+    VkCommandBufferAllocateInfo allocInfo = { 0 };
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = graphics->vkCommandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(graphics->vkDevice, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = { 0 };
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    return commandBuffer;
+}
+
+void GraphicsEndSingleUseCommand(Graphics graphics, void *commandBuffer)
+{
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = { 0 };
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = (VkCommandBuffer *)&commandBuffer;
+
+    vkQueueSubmit(graphics->vkGraphicsQueue, 1, &submitInfo, NULL);
+    vkQueueWaitIdle(graphics->vkGraphicsQueue);
+
+    vkFreeCommandBuffers(graphics->vkDevice, graphics->vkCommandPool, 1, (VkCommandBuffer *)&commandBuffer);
 }
 
 void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics)

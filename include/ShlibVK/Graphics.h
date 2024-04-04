@@ -55,4 +55,7 @@ void GraphicsDestroy(Graphics graphics);
 void GraphicsBeginRenderPass(Graphics graphics);
 void GraphicsEndRenderPass(Graphics graphics);
 
+void *GraphicsBeginSingleUseCommand(Graphics graphics);
+void GraphicsEndSingleUseCommand(Graphics graphics, void *commandBuffer);
+
 #endif //SHLIBVK_GRAPHICS_H

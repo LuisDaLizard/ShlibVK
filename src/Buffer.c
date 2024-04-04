@@ -72,20 +72,7 @@ void BufferSetData(Graphics graphics, Buffer buffer, void *pData, unsigned int s
 
 void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size)
 {
-    VkCommandBufferAllocateInfo allocInfo = { 0 };
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = graphics->vkCommandPool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(graphics->vkDevice, &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo = { 0 };
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkCommandBuffer commandBuffer = GraphicsBeginSingleUseCommand(graphics);
 
     VkBufferCopy copyRegion = { 0 };
     copyRegion.srcOffset = 0; // Optional
@@ -93,17 +80,7 @@ void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size)
     copyRegion.size = size;
     vkCmdCopyBuffer(commandBuffer, src->vkBuffer, dst->vkBuffer, 1, &copyRegion);
 
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo = { 0 };
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(graphics->vkGraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(graphics->vkGraphicsQueue);
-
-    vkFreeCommandBuffers(graphics->vkDevice, graphics->vkCommandPool, 1, &commandBuffer);
+    GraphicsEndSingleUseCommand(graphics, commandBuffer);
 }
 
 unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties)
