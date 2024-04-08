@@ -57,3 +57,22 @@ void WindowPollEvents(Window window)
 {
     glfwPollEvents();
 }
+
+bool WindowIsKeyDown(Window window, KeyCode key)
+{
+    return glfwGetKey(window->pHandle, key);
+}
+
+bool WindowIsMouseButtonDown(Window window, MouseButton button)
+{
+    return glfwGetMouseButton(window->pHandle, button);
+}
+
+void WindowGetMousePos(Window window, float *x, float *y)
+{
+    double xPos, yPos;
+    glfwGetCursorPos(window->pHandle, &xPos, &yPos);
+
+    *x = (float)xPos;
+    *y = (float)yPos;
+}
