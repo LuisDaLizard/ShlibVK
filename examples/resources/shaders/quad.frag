@@ -2,9 +2,11 @@
 
 layout(location = 0) out vec4 oColor;
 
+layout(binding = 1) uniform sampler2D uTexture;
+
 layout(location = 0) in vec2 fTexCoord;
 
 void main()
 {
-    oColor = vec4(fTexCoord, 0, 1);
+    oColor = texture(uTexture, fTexCoord);
 }

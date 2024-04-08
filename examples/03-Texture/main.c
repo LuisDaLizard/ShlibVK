@@ -50,9 +50,9 @@ int main()
 
     InitWindow();
     InitGraphics();
+    InitTexture();
     InitPipeline();
     InitMesh();
-    InitTexture();
 
     while(!WindowShouldClose(gWindow))
     {
@@ -107,6 +107,13 @@ void InitPipeline()
     matrices.type = DESCRIPTOR_TYPE_UNIFORM;
     matrices.uniform = gUniformBuffer;
 
+    Descriptor texture = { 0 };
+    texture.location = 1;
+    texture.count = 1;
+    texture.stage = STAGE_FRAGMENT;
+    texture.type = DESCRIPTOR_TYPE_SAMPLER;
+    texture.texture = gTexture;
+
     Attribute position = { 0 };
     position.location = 0;
     position.offset = 0;
@@ -118,6 +125,7 @@ void InitPipeline()
     uv.components = 2;
 
     Attribute attributes[2] = {position, uv};
+    Descriptor descriptors[2] = {matrices, texture};
 
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
@@ -129,8 +137,8 @@ void InitPipeline()
     createInfo.stride = sizeof(Vertex);
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
-    createInfo.descriptorCount = 1;
-    createInfo.pDescriptors = &matrices;
+    createInfo.descriptorCount = 2;
+    createInfo.pDescriptors = descriptors;
 
     PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }
