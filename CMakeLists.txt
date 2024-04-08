@@ -18,6 +18,7 @@ set(SOURCES
         src/Mesh.c
         src/Buffer.c
         src/UniformBuffer.c
+        src/Texture.c
         src/Math/Matrix.c
         src/Math/Vec2.c
         src/Math/Vec3.c

@@ -18,6 +18,12 @@ typedef enum eShaderStage
     STAGE_FRAGMENT = 0x10,
 } ShaderStage;
 
+typedef enum eDescriptorType
+{
+    DESCRIPTOR_TYPE_UNIFORM = 0,
+    DESCRIPTOR_TYPE_SAMPLER,
+} DescriptorType;
+
 typedef struct sAttribute
 {
     unsigned int location;
@@ -30,6 +36,14 @@ typedef struct sDescriptor
     unsigned int location;
     unsigned int count;
     ShaderStage stage;
+    DescriptorType type;
+
+    union
+    {
+        UniformBuffer uniform;
+        Texture texture;
+    };
+
 } Descriptor;
 
 struct sPipelineCreateInfo
@@ -44,16 +58,15 @@ struct sPipelineCreateInfo
     unsigned int stride;
     unsigned int attributeCount;
     Attribute *pAttributes;
+
     unsigned int descriptorCount;
     Descriptor *pDescriptors;
-
-    unsigned int uniformBufferCount;
-    UniformBuffer *pUniformBuffers;
 };
 
 struct sPipeline
 {
     void *vkPipelineLayout;
+    void *vkDescriptorPool;
     void *vkGraphicsPipeline;
     void *vkDescriptorSetLayout;
     void *vkDescriptorSet;

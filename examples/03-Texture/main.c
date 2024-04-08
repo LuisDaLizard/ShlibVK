@@ -1,9 +1,13 @@
 #include <ShlibVK/ShlibVK.h>
 #include <stdio.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 typedef struct sVertex
 {
     Vec3 position;
+    Vec2 uv;
 } Vertex;
 
 typedef struct sUniformMatrices
@@ -14,9 +18,14 @@ typedef struct sUniformMatrices
 
 const Vertex vertices[] =
         {
-                {{ 0.0f, 0.0f, -0.5f }},
-                {{ 0.5f, 0.0f,  0.5f }},
-                {{-0.5f, 0.0f,  0.5f }},
+                {{ 0.5f, 0.0f, -0.5f }, {1, 1}},
+                {{ 0.5f, 0.0f,  0.5f }, {1, 0}},
+                {{-0.5f, 0.0f,  0.5f }, {0, 0}},
+
+
+                {{-0.5f, 0.0f,  0.5f }, {0, 0}},
+                {{-0.5f, 0.0f, -0.5f }, {0, 1}},
+                {{ 0.5f, 0.0f, -0.5f }, {1, 1}},
         };
 
 Window gWindow;
@@ -25,22 +34,25 @@ Pipeline gPipeline;
 Mesh gMesh;
 UniformBuffer gUniformBuffer;
 UniformMatrices gUniforms;
+Texture gTexture;
 
 void InitWindow();
 void InitGraphics();
 void InitPipeline();
 void InitMesh();
+void InitTexture();
 void Cleanup();
 
 int main()
 {
-    gUniforms.projection = MatrixPerspective(800.0f / 600.0f, 45, 0.01f, 1000.0f);
-    gUniforms.view = MatrixLookAt((Vec3){0, 1, 5}, (Vec3){0, 0, 0}, (Vec3){0, 1, 0});
+    gUniforms.projection = MatrixTranspose(MatrixPerspective(800.0f / 600.0f, 45, 0.01f, 1000.0f));
+    gUniforms.view = MatrixTranspose(MatrixLookAt((Vec3){0, 1, -1}, (Vec3){0, 0, 0}, (Vec3){0, -1, 0}));
 
     InitWindow();
     InitGraphics();
     InitPipeline();
     InitMesh();
+    InitTexture();
 
     while(!WindowShouldClose(gWindow))
     {
@@ -63,7 +75,7 @@ void InitWindow()
     WindowCreateInfo createInfo = { 0 };
     createInfo.width = 800;
     createInfo.height = 600;
-    createInfo.pTitle = "02 - Triangle 3D";
+    createInfo.pTitle = "03 - Texture";
 
     WindowCreate(&createInfo, &gWindow);
 }
@@ -72,7 +84,7 @@ void InitGraphics()
 {
     GraphicsCreateInfo createInfo = { 0 };
     createInfo.debug = true;
-    createInfo.pAppName = "02 - Triangle 3D";
+    createInfo.pAppName = "03 - Texture";
     createInfo.pEngineName = "No Engine";
     createInfo.window = gWindow;
 
@@ -88,30 +100,37 @@ void InitPipeline()
     UniformBufferCreate(gGraphics, &bufferInfo, &gUniformBuffer);
     UniformBufferSetData(gUniformBuffer, &gUniforms, sizeof(UniformMatrices));
 
-    Descriptor uniforms = { 0 };
-    uniforms.location = 0;
-    uniforms.count = 1;
-    uniforms.stage = STAGE_VERTEX;
-    uniforms.type = DESCRIPTOR_TYPE_UNIFORM;
-    uniforms.uniform = gUniformBuffer;
+    Descriptor matrices = { 0 };
+    matrices.location = 0;
+    matrices.count = 1;
+    matrices.stage = STAGE_VERTEX;
+    matrices.type = DESCRIPTOR_TYPE_UNIFORM;
+    matrices.uniform = gUniformBuffer;
 
     Attribute position = { 0 };
     position.location = 0;
     position.offset = 0;
     position.components = 3;
 
+    Attribute uv = { 0 };
+    uv.location = 1;
+    uv.offset = sizeof(Vec3);
+    uv.components = 2;
+
+    Attribute attributes[2] = {position, uv};
+
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     int size = 0;
-    createInfo.pVertexShaderCode = FileReadBytes("../../resources/bin/quad.vert", &size);
+    createInfo.pVertexShaderCode = FileReadBytes("../../resources/shaders/bin/quad.vert", &size);
     createInfo.vertexShaderSize = size;
-    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/quad.frag", &size);
+    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/quad.frag", &size);
     createInfo.fragmentShaderSize = size;
     createInfo.stride = sizeof(Vertex);
-    createInfo.attributeCount = 1;
-    createInfo.pAttributes = &position;
+    createInfo.attributeCount = 2;
+    createInfo.pAttributes = attributes;
     createInfo.descriptorCount = 1;
-    createInfo.pDescriptors = &uniforms;
+    createInfo.pDescriptors = &matrices;
 
     PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }
@@ -120,14 +139,32 @@ void InitMesh()
 {
     MeshCreateInfo createInfo = { 0 };
     createInfo.stride = sizeof(Vertex);
-    createInfo.vertexCount = 3;
+    createInfo.vertexCount = 6;
     createInfo.pVertices = (float *)vertices;
 
     MeshCreate(gGraphics, &createInfo, &gMesh);
 }
 
+void InitTexture()
+{
+    int width, height, channels;
+    void *data = stbi_load("../../resources/textures/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
+
+    if (!data)
+        WriteError(1, "Failed to load image");
+
+    TextureCreateInfo textureInfo = { 0 };
+    textureInfo.width = width;
+    textureInfo.height = height;
+    textureInfo.channels = STBI_rgb_alpha;
+    textureInfo.pData = data;
+
+    TextureCreate(gGraphics, &textureInfo, &gTexture);
+}
+
 void Cleanup()
 {
+    TextureDestroy(gGraphics, gTexture);
     UniformBufferDestroy(gGraphics, gUniformBuffer);
     MeshDestroy(gGraphics, gMesh);
     PipelineDestroy(gGraphics, gPipeline);

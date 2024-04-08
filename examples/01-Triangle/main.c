@@ -97,8 +97,8 @@ void InitPipeline()
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
     createInfo.stride = sizeof(Vertex);
-    createInfo.uniformBufferCount = 0;
-    createInfo.pUniformBuffers = NULL;
+    createInfo.descriptorCount = 0;
+    createInfo.pDescriptors = NULL;
 
     PipelineCreate(gGraphics, &createInfo, &gPipeline);
 }

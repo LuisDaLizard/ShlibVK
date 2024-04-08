@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties);
+unsigned int BufferFindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties);
 
 bool BufferCreate(Graphics graphics, BufferCreateInfo *pCreateInfo, Buffer *pBuffer)
 {
@@ -35,7 +35,7 @@ bool BufferCreate(Graphics graphics, BufferCreateInfo *pCreateInfo, Buffer *pBuf
     VkMemoryAllocateInfo allocInfo = { 0 };
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memReqs.size;
-    allocInfo.memoryTypeIndex = FindMemoryType(graphics, memReqs.memoryTypeBits, flags);
+    allocInfo.memoryTypeIndex = BufferFindMemoryType(graphics, memReqs.memoryTypeBits, flags);
 
     result = vkAllocateMemory(graphics->vkDevice, &allocInfo, NULL, (VkDeviceMemory *)&buffer->vkDeviceMemory);
     if (result != VK_SUCCESS)
@@ -83,7 +83,27 @@ void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size)
     GraphicsEndSingleUseCommand(graphics, commandBuffer);
 }
 
-unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties)
+void BufferCopyToTexture(Graphics graphics, Buffer src, Texture dst)
+{
+    VkCommandBuffer commandBuffer = GraphicsBeginSingleUseCommand(graphics);
+
+    VkBufferImageCopy region = { 0 };
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = (VkOffset3D){ 0, 0, 0 };
+    region.imageExtent = (VkExtent3D){ dst->width, dst->height, 1 };
+
+    vkCmdCopyBufferToImage(commandBuffer, src->vkBuffer, dst->vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    GraphicsEndSingleUseCommand(graphics, commandBuffer);
+}
+
+unsigned int BufferFindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(graphics->vkPhysicalDevice, &memProperties);

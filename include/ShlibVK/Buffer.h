@@ -2,6 +2,7 @@
 #define SHLIBVK_BUFFER_H
 
 #include "Graphics.h"
+#include "Texture.h"
 #include <stdbool.h>
 
 typedef enum eBufferUsage
@@ -38,5 +39,6 @@ void BufferDestroy(Graphics graphics, Buffer buffer);
 
 void BufferSetData(Graphics graphics, Buffer buffer, void *pData, unsigned int size, unsigned int offset);
 void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size);
+void BufferCopyToTexture(Graphics graphics, Buffer src, Texture dst);
 
 #endif //SHLIBVK_BUFFER_H

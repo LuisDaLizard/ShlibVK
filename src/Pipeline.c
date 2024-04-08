@@ -3,12 +3,11 @@
 #include "ShlibVK/Graphics.h"
 
 #include <vulkan/vulkan.h>
-
-#include <string.h>
 #include <stdlib.h>
 
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
 bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
+bool CreateDescriptorPool(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
 bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
 bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader);
 
@@ -18,9 +17,17 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
         return false;
 
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
+    pipeline->vkPipelineLayout = NULL;
+    pipeline->vkDescriptorSetLayout = NULL;
+    pipeline->vkDescriptorPool = NULL;
+    pipeline->vkDescriptorSet = NULL;
+    pipeline->vkGraphicsPipeline = NULL;
 
     VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
     VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
+
+    if (!CreateDescriptorPool(graphics, pipeline, pCreateInfo))
+        return false;
 
     if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo))
         return false;
@@ -45,6 +52,7 @@ void PipelineDestroy(Graphics graphics, Pipeline pipeline)
     vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
     vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
     vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
+    vkDestroyDescriptorPool(graphics->vkDevice, pipeline->vkDescriptorPool, NULL);
 
     free(pipeline);
 }
@@ -77,11 +85,25 @@ VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShader
 bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
 {
     int i;
-    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding ) * pCreateInfo->descriptorCount);
+    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding) * (pCreateInfo->descriptorCount));
     for (i = 0; i < pCreateInfo->descriptorCount; i++)
     {
+        VkDescriptorType type;
+
+        switch (pCreateInfo->pDescriptors[i].type)
+        {
+            case DESCRIPTOR_TYPE_SAMPLER:
+                type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                break;
+            case DESCRIPTOR_TYPE_UNIFORM:
+                type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                break;
+            default:
+                return false;
+        }
+
         layouts[i].binding = pCreateInfo->pDescriptors[i].location;
-        layouts[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layouts[i].descriptorType = type;
         layouts[i].descriptorCount = pCreateInfo->pDescriptors[i].count;
         layouts[i].stageFlags = pCreateInfo->pDescriptors[i].stage;
         layouts[i].pImmutableSamplers = NULL;
@@ -104,11 +126,36 @@ bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCre
     return true;
 }
 
+bool CreateDescriptorPool(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
+{
+    VkDescriptorPoolSize poolSizes[2];
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = 1;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo = { 0 };
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 1;
+
+    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&pipeline->vkDescriptorPool);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create descriptor pool");
+        return false;
+    }
+
+    return true;
+}
+
 bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
 {
     VkDescriptorSetAllocateInfo allocInfo = { 0 };
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = graphics->vkDescriptorPool;
+    allocInfo.descriptorPool = pipeline->vkDescriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout;
 
@@ -121,23 +168,42 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateIn
     }
 
     int i;
-    for (i = 0; i < pCreateInfo->uniformBufferCount; i++)
+    for (i = 0; i < pCreateInfo->descriptorCount; i++)
     {
-        VkDescriptorBufferInfo bufferInfo = { 0 };
-        bufferInfo.buffer = pCreateInfo->pUniformBuffers[i]->buffer->vkBuffer;
-        bufferInfo.offset = 0;
-        bufferInfo.range = pCreateInfo->pUniformBuffers[i]->buffer->size;
-
         VkWriteDescriptorSet descriptorWrite = { 0 };
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrite.dstSet = pipeline->vkDescriptorSet;
-        descriptorWrite.dstBinding = pCreateInfo->pUniformBuffers[i]->binding;
+        descriptorWrite.dstBinding = pCreateInfo->pDescriptors[i].location;
         descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = NULL; // Optional
-        descriptorWrite.pTexelBufferView = NULL; // Optional
+
+        switch(pCreateInfo->pDescriptors[i].type)
+        {
+            case DESCRIPTOR_TYPE_UNIFORM:
+            {
+                VkDescriptorBufferInfo bufferInfo = { 0 };
+                bufferInfo.buffer = pCreateInfo->pDescriptors[i].uniform->buffer->vkBuffer;
+                bufferInfo.offset = 0;
+                bufferInfo.range = pCreateInfo->pDescriptors[i].uniform->buffer->size;
+
+                descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                descriptorWrite.pBufferInfo = &bufferInfo;
+                break;
+            }
+            case DESCRIPTOR_TYPE_SAMPLER:
+            {
+                VkDescriptorImageInfo imageInfo = { 0 };
+                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfo.imageView = pCreateInfo->pDescriptors[i].texture->vkImageView;
+                imageInfo.sampler = pCreateInfo->pDescriptors[i].texture->vkSampler;
+
+                descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                descriptorWrite.pImageInfo = &imageInfo;
+                break;
+            }
+            default:
+                return false;
+        }
 
         vkUpdateDescriptorSets(graphics->vkDevice, 1, &descriptorWrite, 0, NULL);
     }
@@ -276,9 +342,6 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     colorBlending.blendConstants[1] = 0.0f; // Optional
     colorBlending.blendConstants[2] = 0.0f; // Optional
     colorBlending.blendConstants[3] = 0.0f; // Optional
-
-
-
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = { 0 };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;

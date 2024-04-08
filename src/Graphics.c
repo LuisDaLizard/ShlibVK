@@ -100,7 +100,6 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateCommandPool(graphics);
     CreateCommandBuffer(graphics);
     CreateSyncObjects(graphics);
-    CreateDescriptorPool(graphics);
 
     *pGraphics = graphics;
     return true;
@@ -112,8 +111,6 @@ void GraphicsDestroy(Graphics graphics)
         return;
 
     vkDeviceWaitIdle(graphics->vkDevice);
-
-    vkDestroyDescriptorPool(graphics->vkDevice, graphics->vkDescriptorPool, NULL);
 
     CleanupSwapChain(graphics);
 
@@ -384,6 +381,7 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
     }
 
     VkPhysicalDeviceFeatures deviceFeatures = { 0 };
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = { 0 };
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -647,26 +645,6 @@ void CleanupSwapChain(Graphics graphics)
     free(graphics->vkSwapChainImages);
 }
 
-void CreateDescriptorPool(Graphics graphics)
-{
-    VkDescriptorPoolSize poolSize = { 0 };
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = 1;
-
-    VkDescriptorPoolCreateInfo poolInfo = { 0 };
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = 1;
-
-    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&graphics->vkDescriptorPool);
-
-    if (result != VK_SUCCESS)
-    {
-        WriteError(1, "Failed to create descriptor pool");
-    }
-}
-
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
 {
     VkPhysicalDeviceProperties deviceProperties;
@@ -683,7 +661,7 @@ int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
         return 0;
 
     SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(graphics, device);
-    if (!swapChainSupport.formatCount || !swapChainSupport.presentModeCount)
+    if (!swapChainSupport.formatCount || !swapChainSupport.presentModeCount || !deviceFeatures.samplerAnisotropy)
         return 0;
 
     int score = 10;
