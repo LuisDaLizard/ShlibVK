@@ -7,7 +7,6 @@
 
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
 bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
-bool CreateDescriptorPool(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
 bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
 bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader);
 
@@ -17,17 +16,9 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
         return false;
 
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
-    pipeline->vkPipelineLayout = NULL;
-    pipeline->vkDescriptorSetLayout = NULL;
-    pipeline->vkDescriptorPool = NULL;
-    pipeline->vkDescriptorSet = NULL;
-    pipeline->vkGraphicsPipeline = NULL;
 
     VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
     VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
-
-    if (!CreateDescriptorPool(graphics, pipeline, pCreateInfo))
-        return false;
 
     if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo))
         return false;
@@ -52,7 +43,6 @@ void PipelineDestroy(Graphics graphics, Pipeline pipeline)
     vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
     vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
     vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
-    vkDestroyDescriptorPool(graphics->vkDevice, pipeline->vkDescriptorPool, NULL);
 
     free(pipeline);
 }
@@ -126,36 +116,11 @@ bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCre
     return true;
 }
 
-bool CreateDescriptorPool(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
-{
-    VkDescriptorPoolSize poolSizes[2];
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = 1;
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 1;
-
-    VkDescriptorPoolCreateInfo poolInfo = { 0 };
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 2;
-    poolInfo.pPoolSizes = poolSizes;
-    poolInfo.maxSets = 1;
-
-    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&pipeline->vkDescriptorPool);
-
-    if (result != VK_SUCCESS)
-    {
-        WriteWarning("Failed to create descriptor pool");
-        return false;
-    }
-
-    return true;
-}
-
 bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
 {
     VkDescriptorSetAllocateInfo allocInfo = { 0 };
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = pipeline->vkDescriptorPool;
+    allocInfo.descriptorPool = graphics->vkDescriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout;
 

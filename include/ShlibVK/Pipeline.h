@@ -62,7 +62,6 @@ struct sPipelineCreateInfo {
 
 struct sPipeline {
     void *vkPipelineLayout;
-    void *vkDescriptorPool;
     void *vkGraphicsPipeline;
     void *vkDescriptorSetLayout;
     void *vkDescriptorSet;

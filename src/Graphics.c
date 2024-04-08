@@ -80,6 +80,7 @@ void CreateSyncObjects(Graphics graphics);
 void RecreateSwapChain(Graphics graphics);
 void CleanupSwapChain(Graphics graphics);
 void CreateDepthResources(Graphics graphics);
+void CreateDescriptorPool(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -103,6 +104,7 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateDepthResources(graphics);
     CreateFramebuffers(graphics);
     CreateCommandBuffer(graphics);
+    CreateDescriptorPool(graphics);
     CreateSyncObjects(graphics);
 
     *pGraphics = graphics;
@@ -117,6 +119,8 @@ void GraphicsDestroy(Graphics graphics)
     vkDeviceWaitIdle(graphics->vkDevice);
 
     CleanupSwapChain(graphics);
+
+    vkDestroyDescriptorPool(graphics->vkDevice, graphics->vkDescriptorPool, NULL);
 
     vkDestroySemaphore(graphics->vkDevice, graphics->vkImageAvailableSemaphore, NULL);
     vkDestroySemaphore(graphics->vkDevice, graphics->vkRenderFinishedSemaphore, NULL);
@@ -760,6 +764,28 @@ void CreateDepthResources(Graphics graphics)
     graphics->vkDepthImageView = depthTexture->vkImageView;
 
     free(depthTexture);
+}
+
+void CreateDescriptorPool(Graphics graphics)
+{
+    VkDescriptorPoolSize poolSizes[2];
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = 1;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = 2;
+
+    VkDescriptorPoolCreateInfo poolInfo = { 0 };
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 2;
+
+    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&graphics->vkDescriptorPool);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteError(1, "Failed to create descriptor pool");
+    }
 }
 
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
