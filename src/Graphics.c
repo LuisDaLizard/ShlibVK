@@ -780,7 +780,7 @@ void CreateDescriptorPool(Graphics graphics)
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = 2;
     poolInfo.pPoolSizes = poolSizes;
-    poolInfo.maxSets = 2;
+    poolInfo.maxSets = 3;
 
     VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&graphics->vkDescriptorPool);
 
