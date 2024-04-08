@@ -11,6 +11,12 @@ struct sTextureCreateInfo
     void *pData;
 };
 
+struct sTextureDepthCreateInfo
+{
+    unsigned int width;
+    unsigned int height;
+};
+
 struct sTexture
 {
     unsigned int width;
@@ -25,9 +31,11 @@ struct sTexture
 };
 
 typedef struct sTextureCreateInfo TextureCreateInfo;
+typedef struct sTextureDepthCreateInfo TextureDepthCreateInfo;
 typedef struct sTexture *Texture;
 
 bool TextureCreate(Graphics graphics, TextureCreateInfo *pCreateInfo, Texture *pTexture);
+bool TextureCreateDepth(Graphics graphics, TextureDepthCreateInfo *pCreateInfo, Texture *pTexture);
 void TextureDestroy(Graphics graphics, Texture texture);
 
 #endif //SHLIBVK_TEXTURE_H

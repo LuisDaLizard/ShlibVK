@@ -1,6 +1,7 @@
 #include "ShlibVK/Graphics.h"
 #include "ShlibVK/Utils.h"
 #include "ShlibVK/Window.h"
+#include "ShlibVK/Texture.h"
 
 
 #ifdef WIN32
@@ -61,6 +62,8 @@ VkPresentModeKHR ChooseSwapPresentMode(VkPresentModeKHR *pAvailableModes, unsign
 VkExtent2D ChooseSwapExtent(Window window, VkSurfaceCapabilitiesKHR capabilities);
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+VkFormat FindSupportedFormat(Graphics graphics, unsigned int formatCount, VkFormat *pFormats, VkImageTiling tiling, VkFormatFeatureFlags features);
+unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties);
 
 void CreateInstance(GraphicsCreateInfo *pCreateInfo, Graphics graphics);
 void CreateDebugMessenger(Graphics graphics);
@@ -76,7 +79,7 @@ void CreateCommandBuffer(Graphics graphics);
 void CreateSyncObjects(Graphics graphics);
 void RecreateSwapChain(Graphics graphics);
 void CleanupSwapChain(Graphics graphics);
-void CreateDescriptorPool(Graphics graphics);
+void CreateDepthResources(Graphics graphics);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 
@@ -96,8 +99,9 @@ bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics)
     CreateSwapChain(graphics);
     CreateImageViews(graphics);
     CreateRenderPass(graphics);
-    CreateFramebuffers(graphics);
     CreateCommandPool(graphics);
+    CreateDepthResources(graphics);
+    CreateFramebuffers(graphics);
     CreateCommandBuffer(graphics);
     CreateSyncObjects(graphics);
 
@@ -154,7 +158,10 @@ void GraphicsBeginRenderPass(Graphics graphics)
     if (result != VK_SUCCESS)
         WriteError(1, "Failed to begin recording command buffer");
 
-    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    VkClearValue clearValues[2];
+    clearValues[0].color = (VkClearColorValue){{0.0f, 0.0f, 0.0f, 1.0f}};
+    clearValues[1].depthStencil = (VkClearDepthStencilValue){1.0f, 0};
+
     VkRenderPassBeginInfo renderPassInfo = { 0 };
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = graphics->vkRenderPass;
@@ -162,8 +169,8 @@ void GraphicsBeginRenderPass(Graphics graphics)
     renderPassInfo.renderArea.offset = (VkOffset2D){0, 0};
     renderPassInfo.renderArea.extent.width = graphics->vkSwapChainImageWidth;
     renderPassInfo.renderArea.extent.height = graphics->vkSwapChainImageHeight;
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    renderPassInfo.clearValueCount = 2;
+    renderPassInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(graphics->vkCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -510,27 +517,45 @@ void CreateRenderPass(Graphics graphics)
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    VkFormat depthFormats[1] = { VK_FORMAT_D32_SFLOAT };
+    VkAttachmentDescription depthAttachment = { 0 };
+    depthAttachment.format = FindSupportedFormat(graphics, 1, depthFormats, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentReference colorAttachmentRef = { 0 };
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef = { 0 };
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass = { 0 };
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency = { 0 };
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkAttachmentDescription attachments[2] = { colorAttachment, depthAttachment };
 
     VkRenderPassCreateInfo renderPassInfo = { 0 };
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = 2;
+    renderPassInfo.pAttachments = attachments;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
@@ -549,11 +574,13 @@ void CreateFramebuffers(Graphics graphics)
     int i;
     for (i = 0; i < graphics->vkSwapChainImageCount; i++)
     {
+        VkImageView attachments[2] = { graphics->vkSwapChainImageViews[i], graphics->vkDepthImageView };
+
         VkFramebufferCreateInfo framebufferInfo = { 0 };
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = graphics->vkRenderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = (VkImageView *)&graphics->vkSwapChainImageViews[i];
+        framebufferInfo.attachmentCount = 2;
+        framebufferInfo.pAttachments = attachments;
         framebufferInfo.width = graphics->vkSwapChainImageWidth;
         framebufferInfo.height = graphics->vkSwapChainImageHeight;
         framebufferInfo.layers = 1;
@@ -625,12 +652,17 @@ void RecreateSwapChain(Graphics graphics)
 
     CreateSwapChain(graphics);
     CreateImageViews(graphics);
+    CreateDepthResources(graphics);
     CreateFramebuffers(graphics);
 }
 
 void CleanupSwapChain(Graphics graphics)
 {
     int i;
+
+    vkDestroyImageView(graphics->vkDevice, graphics->vkDepthImageView, NULL);
+    vkDestroyImage(graphics->vkDevice, graphics->vkDepthImage, NULL);
+    vkFreeMemory(graphics->vkDevice, graphics->vkDepthImageMemory, NULL);
 
     for (i = 0; i < graphics->vkSwapChainImageCount; i++)
         vkDestroyFramebuffer(graphics->vkDevice, graphics->vkSwapChainFramebuffers[i], NULL);
@@ -643,6 +675,91 @@ void CleanupSwapChain(Graphics graphics)
     free(graphics->vkSwapChainImageViews);
     free(graphics->vkSwapChainFramebuffers);
     free(graphics->vkSwapChainImages);
+}
+
+void CreateDepthResources(Graphics graphics)
+{
+    /*
+    {
+        VkImageCreateInfo imageInfo = { 0 };
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = graphics->vkSwapChainImageWidth;
+        imageInfo.extent.height = graphics->vkSwapChainImageHeight;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VkResult result = vkCreateImage(graphics->vkDevice, &imageInfo, NULL, (VkImage *)&graphics->vkDepthImage);
+
+        if (result != VK_SUCCESS)
+        {
+            WriteError(1, "Failed to create depth image");
+            return;
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(graphics->vkDevice, graphics->vkDepthImage, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo = { 0 };
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = FindMemoryType(graphics, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        result = vkAllocateMemory(graphics->vkDevice, &allocInfo, NULL, (VkDeviceMemory *)&graphics->vkDepthImageMemory);
+
+        if (result != VK_SUCCESS)
+        {
+            WriteError(1, "Failed to allocate depth image memory");
+            return;
+        }
+
+        vkBindImageMemory(graphics->vkDevice, graphics->vkDepthImage, graphics->vkDepthImageMemory, 0);
+
+        VkImageViewCreateInfo viewInfo = { 0 };
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = graphics->vkDepthImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        result = vkCreateImageView(graphics->vkDevice, &viewInfo, NULL, (VkImageView *)&graphics->vkDepthImageView);
+
+        if (result != VK_SUCCESS)
+        {
+            WriteError(1, "Failed to create depth image view");
+            return;
+        }
+    }
+    */
+
+    Texture depthTexture;
+
+    TextureDepthCreateInfo depthInfo = { 0 };
+    depthInfo.width = graphics->vkSwapChainImageWidth;
+    depthInfo.height = graphics->vkSwapChainImageHeight;
+
+    if (!TextureCreateDepth(graphics, &depthInfo, &depthTexture))
+    {
+        WriteError(1, "Failed to create depth attachment");
+        return;
+    }
+
+    graphics->vkDepthImage = depthTexture->vkImage;
+    graphics->vkDepthImageMemory = depthTexture->vkImageMemory;
+    graphics->vkDepthImageView = depthTexture->vkImageView;
+
+    free(depthTexture);
 }
 
 int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
@@ -851,4 +968,22 @@ VkBool32 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugU
     WriteInfo(pCallbackData->pMessage);
 
     return VK_TRUE;
+}
+
+VkFormat FindSupportedFormat(Graphics graphics, unsigned int formatCount, VkFormat *pFormats, VkImageTiling tiling, VkFormatFeatureFlags features)
+{
+    int i;
+    for (i = 0; i < formatCount; i++)
+    {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(graphics->vkPhysicalDevice, pFormats[i], &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+            return pFormats[i];
+        if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+            return pFormats[i];
+    }
+
+    WriteError(1, "Failed to find supported formats");
+    return 0;
 }

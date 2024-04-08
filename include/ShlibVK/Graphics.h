@@ -43,6 +43,10 @@ struct sGraphics
     void *vkRenderFinishedSemaphore;
     void *vkInFlightFence;
     unsigned int vkImageIndex;
+
+    void *vkDepthImage;
+    void *vkDepthImageMemory;
+    void *vkDepthImageView;
 };
 
 typedef struct sGraphicsCreateInfo GraphicsCreateInfo;

@@ -5,11 +5,11 @@
 #include <vulkan/vulkan.h>
 #include <stdlib.h>
 
-bool CreateTextureImage(Graphics graphics, Texture texture, TextureCreateInfo *pCreateInfo);
-bool CreateTextureImageView(Graphics graphics, Texture texture, TextureCreateInfo *pCreateInfo);
+bool CreateTextureImage(Graphics graphics, Texture texture, VkImageUsageFlags usage);
+bool CreateTextureImageView(Graphics graphics, Texture texture, VkImageAspectFlags aspect);
 bool CreateTextureSampler(Graphics graphics, Texture texture, TextureCreateInfo *pCreateInfo);
 unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemoryPropertyFlags properties);
-void TransitionImageLayout(Graphics graphics, Texture texture, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+void TransitionImageLayout(Graphics graphics, Texture texture, VkImageLayout oldLayout, VkImageLayout newLayout);
 
 bool TextureCreate(Graphics graphics, TextureCreateInfo *pCreateInfo, Texture *pTexture)
 {
@@ -17,13 +17,45 @@ bool TextureCreate(Graphics graphics, TextureCreateInfo *pCreateInfo, Texture *p
     texture->width = pCreateInfo->width;
     texture->height = pCreateInfo->height;
 
-    if (!CreateTextureImage(graphics, texture, pCreateInfo))
+    switch(pCreateInfo->channels)
+    {
+        case 3:
+            texture->format = VK_FORMAT_R8G8B8_SRGB;
+            break;
+        case 4:
+            texture->format = VK_FORMAT_R8G8B8A8_SRGB;
+            break;
+        default:
+            WriteWarning("Unsupported channel number");
+            return false;
+    }
+
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    if (!CreateTextureImage(graphics, texture, usage))
     {
         WriteWarning("Failed to create texture image");
         return false;
     }
 
-    if (!CreateTextureImageView(graphics, texture, pCreateInfo))
+    Buffer stagingBuffer;
+
+    BufferCreateInfo bufferInfo = { 0 };
+    bufferInfo.size = texture->width * texture->height * pCreateInfo->channels;
+    bufferInfo.local = false;
+    bufferInfo.persistent = false;
+    bufferInfo.usage = USAGE_TRANSFER_SRC;
+
+    BufferCreate(graphics, &bufferInfo, &stagingBuffer);
+    BufferSetData(graphics, stagingBuffer, pCreateInfo->pData, bufferInfo.size, 0);
+
+    TransitionImageLayout(graphics, texture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    BufferCopyToTexture(graphics, stagingBuffer, texture);
+    TransitionImageLayout(graphics, texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    BufferDestroy(graphics, stagingBuffer);
+
+    if (!CreateTextureImageView(graphics, texture, VK_IMAGE_ASPECT_COLOR_BIT))
     {
         WriteWarning("Failed to create texture image view");
         return false;
@@ -39,11 +71,39 @@ bool TextureCreate(Graphics graphics, TextureCreateInfo *pCreateInfo, Texture *p
     return true;
 }
 
+bool TextureCreateDepth(Graphics graphics, TextureDepthCreateInfo *pCreateInfo, Texture *pTexture)
+{
+    Texture texture = malloc(sizeof(struct sTexture));
+    texture->width = pCreateInfo->width;
+    texture->height = pCreateInfo->height;
+    texture->format = VK_FORMAT_D32_SFLOAT;
+
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    if (!CreateTextureImage(graphics, texture, usage))
+    {
+        WriteWarning("Failed to create depth texture image");
+        return false;
+    }
+
+    if (!CreateTextureImageView(graphics, texture, VK_IMAGE_ASPECT_DEPTH_BIT))
+    {
+        WriteWarning("Failed to create depth texture image view");
+        return false;
+    }
+
+    TransitionImageLayout(graphics, texture, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    *pTexture = texture;
+    return true;
+}
+
 void TextureDestroy(Graphics graphics, Texture texture)
 {
     vkDeviceWaitIdle(graphics->vkDevice);
 
-    vkDestroySampler(graphics->vkDevice, texture->vkSampler, NULL);
+    if (texture->vkSampler)
+        vkDestroySampler(graphics->vkDevice, texture->vkSampler, NULL);
     vkDestroyImageView(graphics->vkDevice, texture->vkImageView, NULL);
     vkDestroyImage(graphics->vkDevice, texture->vkImage, NULL);
     vkFreeMemory(graphics->vkDevice, texture->vkImageMemory, NULL);
@@ -51,31 +111,8 @@ void TextureDestroy(Graphics graphics, Texture texture)
     free(texture);
 }
 
-bool CreateTextureImage(Graphics graphics, Texture texture, TextureCreateInfo *pCreateInfo)
+bool CreateTextureImage(Graphics graphics, Texture texture, VkImageUsageFlags usage)
 {
-    Buffer stagingBuffer;
-    BufferCreateInfo bufferInfo = { 0 };
-    bufferInfo.size = texture->width * texture->height * pCreateInfo->channels;
-    bufferInfo.local = false;
-    bufferInfo.persistent = false;
-    bufferInfo.usage = USAGE_TRANSFER_SRC;
-
-    BufferCreate(graphics, &bufferInfo, &stagingBuffer);
-    BufferSetData(graphics, stagingBuffer, pCreateInfo->pData, bufferInfo.size, 0);
-
-    switch(pCreateInfo->channels)
-    {
-        case 3:
-            texture->format = VK_FORMAT_R8G8B8_SRGB;
-            break;
-        case 4:
-            texture->format = VK_FORMAT_R8G8B8A8_SRGB;
-            break;
-        default:
-            WriteWarning("Unsupported channel number");
-            return false;
-    }
-
     VkImageCreateInfo imageInfo = { 0 };
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -87,7 +124,7 @@ bool CreateTextureImage(Graphics graphics, Texture texture, TextureCreateInfo *p
     imageInfo.format = texture->format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -117,25 +154,17 @@ bool CreateTextureImage(Graphics graphics, Texture texture, TextureCreateInfo *p
 
     vkBindImageMemory(graphics->vkDevice, texture->vkImage, texture->vkImageMemory, 0);
 
-    TransitionImageLayout(graphics, texture, texture->format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    BufferCopyToTexture(graphics, stagingBuffer, texture);
-
-    TransitionImageLayout(graphics, texture, texture->format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    BufferDestroy(graphics, stagingBuffer);
-
     return true;
 }
 
-bool CreateTextureImageView(Graphics graphics, Texture texture, TextureCreateInfo *pCreateInfo)
+bool CreateTextureImageView(Graphics graphics, Texture texture, VkImageAspectFlags aspect)
 {
     VkImageViewCreateInfo viewInfo = { 0 };
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = texture->vkImage;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = texture->format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspect;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -197,7 +226,7 @@ unsigned int FindMemoryType(Graphics graphics, unsigned int typeFilter, VkMemory
     return 0;
 }
 
-void TransitionImageLayout(Graphics graphics, Texture texture, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+void TransitionImageLayout(Graphics graphics, Texture texture, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
     VkCommandBuffer commandBuffer = GraphicsBeginSingleUseCommand(graphics);
 
@@ -216,6 +245,11 @@ void TransitionImageLayout(Graphics graphics, Texture texture, VkFormat format, 
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
 
+    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+    {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+
     if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
     {
         barrier.srcAccessMask = 0;
@@ -231,6 +265,14 @@ void TransitionImageLayout(Graphics graphics, Texture texture, VkFormat format, 
 
         srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     }
     else
     {
