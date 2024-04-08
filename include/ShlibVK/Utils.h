@@ -1,6 +1,10 @@
 #ifndef SHLIBVK_UTILS_H
 #define SHLIBVK_UTILS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #define _USE_MATH_DEFINES
@@ -28,5 +32,9 @@ void *FileReadBytes(const char *filePath, int *size);
 void FileFree(void *contents);
 
 double GetTime();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_UTILS_H

@@ -1,6 +1,10 @@
 #ifndef SHLIBVK_H
 #define SHLIBVK_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "Window.h"
 #include "Graphics.h"
 #include "Pipeline.h"
@@ -13,5 +17,9 @@
 #include "Math/Vec3.h"
 #include "Math/Vec2.h"
 #include "Utilities/List.h"
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_H

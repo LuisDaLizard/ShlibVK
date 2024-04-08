@@ -1,11 +1,14 @@
 #ifndef SHLIBVK_GRAPHICS_H
 #define SHLIBVK_GRAPHICS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "Window.h"
 #include <stdbool.h>
 
-struct sGraphicsCreateInfo
-{
+struct sGraphicsCreateInfo {
     bool debug;
 
     const char *pAppName;
@@ -14,8 +17,7 @@ struct sGraphicsCreateInfo
     Window window;
 };
 
-struct sGraphics
-{
+struct sGraphics {
     unsigned int windowWidth, windowHeight;
     Window window;
 
@@ -53,12 +55,19 @@ typedef struct sGraphicsCreateInfo GraphicsCreateInfo;
 typedef struct sGraphics *Graphics;
 
 bool GraphicsCreate(GraphicsCreateInfo *pCreateInfo, Graphics *pGraphics);
+
 void GraphicsDestroy(Graphics graphics);
 
 void GraphicsBeginRenderPass(Graphics graphics);
+
 void GraphicsEndRenderPass(Graphics graphics);
 
 void *GraphicsBeginSingleUseCommand(Graphics graphics);
+
 void GraphicsEndSingleUseCommand(Graphics graphics, void *commandBuffer);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_GRAPHICS_H

@@ -1,6 +1,10 @@
 #ifndef SHLIBVK_MATRIX_H
 #define SHLIBVK_MATRIX_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #define _USE_MATH_DEFINES
@@ -11,8 +15,7 @@
 #include "Vec3.h"
 #include "Vec4.h"
 
-typedef struct sMatrix
-{
+typedef struct sMatrix {
     float m00, m01, m02, m03;
     float m10, m11, m12, m13;
     float m20, m21, m22, m23;
@@ -48,5 +51,9 @@ Matrix MatrixPerspective(float aspect, float fov, float near, float far);
 Matrix MatrixLookAt(Vec3 eye, Vec3 target, Vec3 up);
 
 Matrix MatrixTranspose(Matrix matrix);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_MATRIX_H

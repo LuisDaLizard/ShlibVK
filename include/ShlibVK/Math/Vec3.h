@@ -1,6 +1,10 @@
 #ifndef SHLIBVK_VEC3_H
 #define SHLIBVK_VEC3_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #define _USE_MATH_DEFINES
@@ -8,8 +12,7 @@
 
 #include <math.h>
 
-typedef struct sVec3
-{
+typedef struct sVec3 {
     float x, y, z;
 } Vec3;
 
@@ -32,5 +35,9 @@ Vec3 Vec3Scale(Vec3 vector, float scalar);
 Vec3 Vec3Mul(Vec3 left, Vec3 right);
 
 float Vec3Magnitude(Vec3 vector);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_VEC3_H

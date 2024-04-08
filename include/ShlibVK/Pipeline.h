@@ -1,53 +1,50 @@
 #ifndef SHLIBVK_PIPELINE_H
 #define SHLIBVK_PIPELINE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "Graphics.h"
 #include "UniformBuffer.h"
 #include <stdbool.h>
 
-typedef enum eTopology
-{
+typedef enum eTopology {
     TOPOLOGY_POINT_LIST = 1,
     TOPOLOGY_TRIANGLE_LIST = 3,
     TOPOLOGY_PATCH_LIST = 10,
 } Topology;
 
-typedef enum eShaderStage
-{
+typedef enum eShaderStage {
     STAGE_VERTEX = 0x01,
     STAGE_FRAGMENT = 0x10,
 } ShaderStage;
 
-typedef enum eDescriptorType
-{
+typedef enum eDescriptorType {
     DESCRIPTOR_TYPE_UNIFORM = 0,
     DESCRIPTOR_TYPE_SAMPLER,
 } DescriptorType;
 
-typedef struct sAttribute
-{
+typedef struct sAttribute {
     unsigned int location;
     unsigned int components;
     unsigned int offset;
 } Attribute;
 
-typedef struct sDescriptor
-{
+typedef struct sDescriptor {
     unsigned int location;
     unsigned int count;
     ShaderStage stage;
     DescriptorType type;
 
-    union
-    {
+    union {
         UniformBuffer uniform;
         Texture texture;
     };
 
 } Descriptor;
 
-struct sPipelineCreateInfo
-{
+struct sPipelineCreateInfo {
     const unsigned int *pVertexShaderCode;
     unsigned int vertexShaderSize;
     const unsigned int *pFragmentShaderCode;
@@ -63,8 +60,7 @@ struct sPipelineCreateInfo
     Descriptor *pDescriptors;
 };
 
-struct sPipeline
-{
+struct sPipeline {
     void *vkPipelineLayout;
     void *vkDescriptorPool;
     void *vkGraphicsPipeline;
@@ -76,8 +72,13 @@ typedef struct sPipelineCreateInfo PipelineCreateInfo;
 typedef struct sPipeline *Pipeline;
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline);
+
 void PipelineDestroy(Graphics graphics, Pipeline pipeline);
 
 void PipelineBind(Graphics graphics, Pipeline pipeline);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //SHLIBVK_PIPELINE_H
