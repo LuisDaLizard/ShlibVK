@@ -47,5 +47,6 @@ Matrix MatrixPerspective(float aspect, float fov, float near, float far);
 
 Matrix MatrixLookAt(Vec3 eye, Vec3 target, Vec3 up);
 
+Matrix MatrixTranspose(Matrix matrix);
 
 #endif //SHLIBVK_MATRIX_H
