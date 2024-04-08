@@ -40,6 +40,12 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     vkDestroyShaderModule(graphics->vkDevice, vertex, NULL);
     vkDestroyShaderModule(graphics->vkDevice, fragment, NULL);
 
+    if (pCreateInfo->pTessCtrlCode && pCreateInfo->pTessEvalCode)
+    {
+        vkDestroyShaderModule(graphics->vkDevice, tessCtrl, NULL);
+        vkDestroyShaderModule(graphics->vkDevice, tessEval, NULL);
+    }
+
     *pPipeline = pipeline;
     return true;
 }
@@ -410,6 +416,8 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
         WriteWarning("Failed to create graphics pipeline");
         return false;
     }
+
+    free(shaderStages);
 
     return true;
 }
