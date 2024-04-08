@@ -17,6 +17,8 @@ typedef enum eTopology {
 
 typedef enum eShaderStage {
     STAGE_VERTEX = 0x01,
+    STAGE_TESSELATION_CONTROL = 0x02,
+    STAGE_TESSELATION_EVALUATION = 0x04,
     STAGE_FRAGMENT = 0x10,
 } ShaderStage;
 
@@ -47,10 +49,15 @@ typedef struct sDescriptor {
 struct sPipelineCreateInfo {
     const unsigned int *pVertexShaderCode;
     unsigned int vertexShaderSize;
+    const unsigned int *pTessCtrlCode;
+    unsigned int tessCtrlShaderSize;
+    const unsigned int *pTessEvalCode;
+    unsigned int tessEvalShaderSize;
     const unsigned int *pFragmentShaderCode;
     unsigned int fragmentShaderSize;
 
     Topology topology;
+    unsigned int patchSize;
 
     unsigned int stride;
     unsigned int attributeCount;

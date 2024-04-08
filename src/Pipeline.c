@@ -8,7 +8,7 @@
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
 bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
 bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
-bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader);
+bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule tessCtrl, VkShaderModule tessEval, VkShaderModule fragShader);
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
@@ -19,11 +19,19 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
 
     VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
     VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
+    VkShaderModule tessEval = NULL;
+    VkShaderModule tessCtrl = NULL;
+
+    if (pCreateInfo->pTessCtrlCode && pCreateInfo->pTessEvalCode)
+    {
+        tessCtrl = CreateShaderModule(graphics, pCreateInfo->pTessCtrlCode, pCreateInfo->tessCtrlShaderSize);
+        tessEval = CreateShaderModule(graphics, pCreateInfo->pTessEvalCode, pCreateInfo->tessEvalShaderSize);
+    }
 
     if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo))
         return false;
 
-    if (!CreatePipeline(graphics, pipeline, pCreateInfo, vertex, fragment))
+    if (!CreatePipeline(graphics, pipeline, pCreateInfo, vertex, tessCtrl, tessEval, fragment))
         return false;
 
     if (!CreateDescriptorSets(graphics, pipeline, pCreateInfo))
@@ -176,13 +184,48 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateIn
     return true;
 }
 
-bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule fragShader)
+bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule tessCtrl, VkShaderModule tessEval, VkShaderModule fragShader)
 {
+    bool useTesselation = (pCreateInfo->pTessCtrlCode && pCreateInfo->pTessEvalCode);
+
+    unsigned int stageCount = 2, stageIndex = 0;
+
+    if (useTesselation)
+    {
+        stageCount += 2;
+    }
+
+    VkPipelineShaderStageCreateInfo *shaderStages = malloc(sizeof(VkPipelineShaderStageCreateInfo) * stageCount);
+
     VkPipelineShaderStageCreateInfo vertexStage = { 0 };
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
     vertexStage.module = vertShader;
     vertexStage.pName = "main";
+
+    shaderStages[stageIndex] = vertexStage;
+    stageIndex++;
+
+    if (useTesselation)
+    {
+        VkPipelineShaderStageCreateInfo tessCtrlStage = { 0 };
+        tessCtrlStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        tessCtrlStage.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+        tessCtrlStage.module = tessCtrl;
+        tessCtrlStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo tessEvalStage = { 0 };
+        tessEvalStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        tessEvalStage.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+        tessEvalStage.module = tessEval;
+        tessEvalStage.pName = "main";
+
+        shaderStages[stageIndex] = tessCtrlStage;
+        stageIndex++;
+
+        shaderStages[stageIndex] = tessEvalStage;
+        stageIndex++;
+    }
 
     VkPipelineShaderStageCreateInfo fragmentStage = { 0 };
     fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -190,7 +233,8 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     fragmentStage.module = fragShader;
     fragmentStage.pName = "main";
 
-    VkPipelineShaderStageCreateInfo shaderStages[] = {vertexStage, fragmentStage};
+    shaderStages[stageIndex] = fragmentStage;
+    stageIndex++;
 
     VkVertexInputBindingDescription bindingDescription = { 0 };
     bindingDescription.binding = 0;
@@ -278,6 +322,10 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     rasterizer.depthBiasClamp = 0.0f; // Optional
     rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
 
+    VkPipelineTessellationStateCreateInfo  tesselation = { 0 };
+    tesselation.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+    tesselation.patchControlPoints = pCreateInfo->patchSize;
+
     VkPipelineMultisampleStateCreateInfo multisampling = { 0 };
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
@@ -338,12 +386,14 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
 
     VkGraphicsPipelineCreateInfo pipelineInfo = { 0 };
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
+    pipelineInfo.stageCount = stageCount;
     pipelineInfo.pStages = shaderStages;
     pipelineInfo.pVertexInputState = &vertexInput;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
+    if (useTesselation)
+        pipelineInfo.pTessellationState = &tesselation;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
