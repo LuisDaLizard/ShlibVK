@@ -393,6 +393,7 @@ void CreateLogicalDevice(GraphicsCreateInfo *pCreateInfo, Graphics graphics)
 
     VkPhysicalDeviceFeatures deviceFeatures = { 0 };
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.tessellationShader = VK_TRUE;
 
     VkDeviceCreateInfo createInfo = { 0 };
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -804,7 +805,7 @@ int RateDeviceSuitability(Graphics graphics, VkPhysicalDevice device)
         return 0;
 
     SwapChainSupportDetails swapChainSupport = QuerySwapChainSupport(graphics, device);
-    if (!swapChainSupport.formatCount || !swapChainSupport.presentModeCount || !deviceFeatures.samplerAnisotropy)
+    if (!swapChainSupport.formatCount || !swapChainSupport.presentModeCount || !deviceFeatures.samplerAnisotropy || !deviceFeatures.tessellationShader)
         return 0;
 
     int score = 10;
