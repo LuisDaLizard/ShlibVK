@@ -103,9 +103,9 @@ void InitPipeline()
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     int size = 0;
-    createInfo.pVertexShaderCode = FileReadBytes("../../resources/bin/quad.vert", &size);
+    createInfo.pVertexShaderCode = FileReadBytes("../../resources/shaders/bin/quad.vert", &size);
     createInfo.vertexShaderSize = size;
-    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/quad.frag", &size);
+    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/quad.frag", &size);
     createInfo.fragmentShaderSize = size;
     createInfo.stride = sizeof(Vertex);
     createInfo.attributeCount = 1;

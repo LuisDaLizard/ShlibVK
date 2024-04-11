@@ -177,16 +177,39 @@ bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned
         }
     }
 
-    VkDescriptorPoolSize poolSizes[2];
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = uniformCount;
-    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = samplerCount;
+    unsigned int poolCount = 0;
+    if (uniformCount)
+        poolCount++;
+    if (samplerCount)
+        poolCount++;
+
+    VkDescriptorPoolSize *poolSizes = NULL;
+
+    if (poolCount)
+    {
+        poolSizes = malloc(sizeof(VkDescriptorPoolSize) * poolCount);
+        unsigned int index = 0;
+        if (uniformCount)
+        {
+            poolSizes[index].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            poolSizes[index].descriptorCount = uniformCount;
+
+            index++;
+        }
+
+        if (samplerCount)
+        {
+            poolSizes[index].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            poolSizes[index].descriptorCount = samplerCount;
+
+            index++;
+        }
+    }
 
     VkDescriptorPoolCreateInfo poolInfo = { 0 };
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.poolSizeCount = 2;
+    poolInfo.poolSizeCount = poolCount;
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.maxSets = 1;
 

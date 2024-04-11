@@ -90,9 +90,9 @@ void InitPipeline()
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     int size = 0;
-    createInfo.pVertexShaderCode = FileReadBytes("../../resources/bin/triangle.vert", &size);
+    createInfo.pVertexShaderCode = FileReadBytes("../../resources/shaders/bin/triangle.vert", &size);
     createInfo.vertexShaderSize = size;
-    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/bin/triangle.frag", &size);
+    createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/triangle.frag", &size);
     createInfo.fragmentShaderSize = size;
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
