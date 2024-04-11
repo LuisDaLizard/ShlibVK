@@ -67,21 +67,38 @@ struct sPipelineCreateInfo {
     Descriptor *pDescriptors;
 };
 
+struct sPipelineComputeCreateInfo
+{
+    const unsigned int *pComputeShaderCode;
+    unsigned int computeShaderSize;
+
+    unsigned int descriptorCount;
+    Descriptor *pDescriptors;
+};
+
 struct sPipeline {
     void *vkPipelineLayout;
-    void *vkGraphicsPipeline;
+    void *vkPipeline;
     void *vkDescriptorSetLayout;
     void *vkDescriptorSet;
+    void *vkDescriptorPool;
+
+    bool compute;
 };
 
 typedef struct sPipelineCreateInfo PipelineCreateInfo;
+typedef struct sPipelineComputeCreateInfo PipelineComputeCreateInfo;
 typedef struct sPipeline *Pipeline;
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline);
 
+bool PipelineComputeCreate(Graphics graphics, PipelineComputeCreateInfo *pCreateInfo, Pipeline *pPipeline);
+
 void PipelineDestroy(Graphics graphics, Pipeline pipeline);
 
 void PipelineBind(Graphics graphics, Pipeline pipeline);
+
+void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int x, unsigned int y, unsigned int z);
 
 #ifdef __cplusplus
 }

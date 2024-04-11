@@ -25,7 +25,7 @@ struct sGraphics {
     void *vkDebugMessenger;
     void *vkPhysicalDevice;
     void *vkDevice;
-    void *vkGraphicsQueue, *vkPresentQueue;
+    void *vkGraphicsQueue, *vkPresentQueue, *vkComputeQueue;
     void *vkSurface;
     unsigned int vkGraphicsQueueIndex, vkPresentQueueIndex;
 

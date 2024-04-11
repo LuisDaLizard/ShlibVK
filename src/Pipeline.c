@@ -5,10 +5,25 @@
 #include <vulkan/vulkan.h>
 #include <stdlib.h>
 
+typedef struct sGraphicsPipelineShaders
+{
+    VkShaderModule vertex;
+    VkShaderModule tessCtrl;
+    VkShaderModule tessEval;
+    VkShaderModule fragment;
+} GraphicsPipelineShaders;
+
+typedef struct sComputePipelineShaders
+{
+    VkShaderModule compute;
+} ComputePipelineShaders;
+
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize);
-bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
-bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo);
-bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule tessCtrl, VkShaderModule tessEval, VkShaderModule fragShader);
+bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors);
+bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors);
+bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors);
+bool CreateGraphicsPipeline(Graphics graphics, Pipeline pipeline, GraphicsPipelineShaders shaders, PipelineCreateInfo *pCreateInfo);
+bool CreateComputePipeline(Graphics graphics, Pipeline pipeline, ComputePipelineShaders shaders);
 
 bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline *pPipeline)
 {
@@ -16,6 +31,7 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
         return false;
 
     Pipeline pipeline = malloc(sizeof(struct sPipeline));
+    pipeline->compute = false;
 
     VkShaderModule vertex = CreateShaderModule(graphics, pCreateInfo->pVertexShaderCode, pCreateInfo->vertexShaderSize);
     VkShaderModule fragment = CreateShaderModule(graphics, pCreateInfo->pFragmentShaderCode, pCreateInfo->fragmentShaderSize);
@@ -28,13 +44,22 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
         tessEval = CreateShaderModule(graphics, pCreateInfo->pTessEvalCode, pCreateInfo->tessEvalShaderSize);
     }
 
-    if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo))
+    GraphicsPipelineShaders shaders = { 0 };
+    shaders.vertex = vertex;
+    shaders.fragment = fragment;
+    shaders.tessCtrl = tessCtrl;
+    shaders.tessEval = tessEval;
+
+    if (!CreatePipelineDescriptorPool(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
         return false;
 
-    if (!CreatePipeline(graphics, pipeline, pCreateInfo, vertex, tessCtrl, tessEval, fragment))
+    if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
         return false;
 
-    if (!CreateDescriptorSets(graphics, pipeline, pCreateInfo))
+    if (!CreateGraphicsPipeline(graphics, pipeline, shaders, pCreateInfo))
+        return false;
+
+    if (!CreateDescriptorSets(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
         return false;
 
     vkDestroyShaderModule(graphics->vkDevice, vertex, NULL);
@@ -50,12 +75,44 @@ bool PipelineCreate(Graphics graphics, PipelineCreateInfo *pCreateInfo, Pipeline
     return true;
 }
 
+bool PipelineComputeCreate(Graphics graphics, PipelineComputeCreateInfo *pCreateInfo, Pipeline *pPipeline)
+{
+    Pipeline pipeline = malloc(sizeof(struct sPipeline));
+    pipeline->compute = true;
+
+    VkShaderModule compute = CreateShaderModule(graphics, pCreateInfo->pComputeShaderCode, pCreateInfo->computeShaderSize);
+
+    if (!compute)
+        return false;
+
+    ComputePipelineShaders shaders = { 0 };
+    shaders.compute = compute;
+
+    if (!CreatePipelineDescriptorPool(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
+        return false;
+
+    if (!CreateDescriptorSetLayout(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
+        return false;
+
+    if (!CreateComputePipeline(graphics, pipeline, shaders))
+        return false;
+
+    if (!CreateDescriptorSets(graphics, pipeline, pCreateInfo->descriptorCount, pCreateInfo->pDescriptors))
+        return false;
+
+    vkDestroyShaderModule(graphics->vkDevice, compute, NULL);
+
+    *pPipeline = pipeline;
+    return true;
+}
+
 void PipelineDestroy(Graphics graphics, Pipeline pipeline)
 {
     vkDeviceWaitIdle(graphics->vkDevice);
 
+    vkDestroyDescriptorPool(graphics->vkDevice, pipeline->vkDescriptorPool, NULL);
     vkDestroyDescriptorSetLayout(graphics->vkDevice, pipeline->vkDescriptorSetLayout, NULL);
-    vkDestroyPipeline(graphics->vkDevice, pipeline->vkGraphicsPipeline, NULL);
+    vkDestroyPipeline(graphics->vkDevice, pipeline->vkPipeline, NULL);
     vkDestroyPipelineLayout(graphics->vkDevice, pipeline->vkPipelineLayout, NULL);
 
     free(pipeline);
@@ -63,8 +120,23 @@ void PipelineDestroy(Graphics graphics, Pipeline pipeline)
 
 void PipelineBind(Graphics graphics, Pipeline pipeline)
 {
-    vkCmdBindPipeline(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkGraphicsPipeline);
-    vkCmdBindDescriptorSets(graphics->vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkPipelineLayout, 0, 1, (VkDescriptorSet *)&pipeline->vkDescriptorSet, 0, NULL);
+    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    if (pipeline->compute)
+        bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+
+
+    vkCmdBindPipeline(graphics->vkCommandBuffer, bindPoint, pipeline->vkPipeline);
+    vkCmdBindDescriptorSets(graphics->vkCommandBuffer, bindPoint, pipeline->vkPipelineLayout, 0, 1, (VkDescriptorSet *)&pipeline->vkDescriptorSet, 0, NULL);
+}
+
+void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int x, unsigned int y, unsigned int z)
+{
+    if (!x || !y || !z)
+        return;
+
+    PipelineBind(graphics, pipeline);
+    vkCmdDispatch(graphics->vkCommandBuffer, x, y, z);
 }
 
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize)
@@ -86,15 +158,58 @@ VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShader
     return shaderModule;
 }
 
-bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
+bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors)
+{
+    unsigned int uniformCount = 0, samplerCount = 0;
+    int i = 0;
+    for (i = 0; i < descriptorCount; i++)
+    {
+        switch(pDescriptors[i].type)
+        {
+            case DESCRIPTOR_TYPE_UNIFORM:
+                uniformCount++;
+                break;
+            case DESCRIPTOR_TYPE_SAMPLER:
+                samplerCount++;
+                break;
+            default:
+                return false;
+        }
+    }
+
+    VkDescriptorPoolSize poolSizes[2];
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = uniformCount;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = samplerCount;
+
+    VkDescriptorPoolCreateInfo poolInfo = { 0 };
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 1;
+
+    VkResult result = vkCreateDescriptorPool(graphics->vkDevice, &poolInfo, NULL, (VkDescriptorPool *)&pipeline->vkDescriptorPool);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create descriptor pool");
+        return false;
+    }
+
+    return true;
+}
+
+bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors)
 {
     int i;
-    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding) * (pCreateInfo->descriptorCount));
-    for (i = 0; i < pCreateInfo->descriptorCount; i++)
+    VkDescriptorSetLayoutBinding  *layouts = malloc(sizeof(VkDescriptorSetLayoutBinding) * (descriptorCount));
+    for (i = 0; i < descriptorCount; i++)
     {
         VkDescriptorType type;
 
-        switch (pCreateInfo->pDescriptors[i].type)
+        switch (pDescriptors[i].type)
         {
             case DESCRIPTOR_TYPE_SAMPLER:
                 type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -106,16 +221,16 @@ bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCre
                 return false;
         }
 
-        layouts[i].binding = pCreateInfo->pDescriptors[i].location;
+        layouts[i].binding = pDescriptors[i].location;
         layouts[i].descriptorType = type;
-        layouts[i].descriptorCount = pCreateInfo->pDescriptors[i].count;
-        layouts[i].stageFlags = pCreateInfo->pDescriptors[i].stage;
+        layouts[i].descriptorCount = pDescriptors[i].count;
+        layouts[i].stageFlags = pDescriptors[i].stage;
         layouts[i].pImmutableSamplers = NULL;
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = { 0 };
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = pCreateInfo->descriptorCount;
+    layoutInfo.bindingCount = descriptorCount;
     layoutInfo.pBindings = layouts;
     VkResult result = vkCreateDescriptorSetLayout(graphics->vkDevice, &layoutInfo, NULL, (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout);
 
@@ -130,11 +245,11 @@ bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, PipelineCre
     return true;
 }
 
-bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo)
+bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors)
 {
     VkDescriptorSetAllocateInfo allocInfo = { 0 };
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = graphics->vkDescriptorPool;
+    allocInfo.descriptorPool = pipeline->vkDescriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout;
 
@@ -147,23 +262,23 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateIn
     }
 
     int i;
-    for (i = 0; i < pCreateInfo->descriptorCount; i++)
+    for (i = 0; i < descriptorCount; i++)
     {
         VkWriteDescriptorSet descriptorWrite = { 0 };
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrite.dstSet = pipeline->vkDescriptorSet;
-        descriptorWrite.dstBinding = pCreateInfo->pDescriptors[i].location;
+        descriptorWrite.dstBinding = pDescriptors[i].location;
         descriptorWrite.dstArrayElement = 0;
         descriptorWrite.descriptorCount = 1;
 
-        switch(pCreateInfo->pDescriptors[i].type)
+        switch(pDescriptors[i].type)
         {
             case DESCRIPTOR_TYPE_UNIFORM:
             {
                 VkDescriptorBufferInfo bufferInfo = { 0 };
-                bufferInfo.buffer = pCreateInfo->pDescriptors[i].uniform->buffer->vkBuffer;
+                bufferInfo.buffer = pDescriptors[i].uniform->buffer->vkBuffer;
                 bufferInfo.offset = 0;
-                bufferInfo.range = pCreateInfo->pDescriptors[i].uniform->buffer->size;
+                bufferInfo.range = pDescriptors[i].uniform->buffer->size;
 
                 descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
                 descriptorWrite.pBufferInfo = &bufferInfo;
@@ -173,8 +288,8 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateIn
             {
                 VkDescriptorImageInfo imageInfo = { 0 };
                 imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                imageInfo.imageView = pCreateInfo->pDescriptors[i].texture->vkImageView;
-                imageInfo.sampler = pCreateInfo->pDescriptors[i].texture->vkSampler;
+                imageInfo.imageView = pDescriptors[i].texture->vkImageView;
+                imageInfo.sampler = pDescriptors[i].texture->vkSampler;
 
                 descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 descriptorWrite.pImageInfo = &imageInfo;
@@ -190,9 +305,9 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, PipelineCreateIn
     return true;
 }
 
-bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pCreateInfo, VkShaderModule vertShader, VkShaderModule tessCtrl, VkShaderModule tessEval, VkShaderModule fragShader)
+bool CreateGraphicsPipeline(Graphics graphics, Pipeline pipeline, GraphicsPipelineShaders shaders, PipelineCreateInfo *pCreateInfo)
 {
-    bool useTesselation = (pCreateInfo->pTessCtrlCode && pCreateInfo->pTessEvalCode);
+    bool useTesselation = (shaders.tessCtrl && shaders.tessEval);
 
     unsigned int stageCount = 2, stageIndex = 0;
 
@@ -206,7 +321,7 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     VkPipelineShaderStageCreateInfo vertexStage = { 0 };
     vertexStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexStage.module = vertShader;
+    vertexStage.module = shaders.vertex;
     vertexStage.pName = "main";
 
     shaderStages[stageIndex] = vertexStage;
@@ -217,13 +332,13 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
         VkPipelineShaderStageCreateInfo tessCtrlStage = { 0 };
         tessCtrlStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         tessCtrlStage.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-        tessCtrlStage.module = tessCtrl;
+        tessCtrlStage.module = shaders.tessCtrl;
         tessCtrlStage.pName = "main";
 
         VkPipelineShaderStageCreateInfo tessEvalStage = { 0 };
         tessEvalStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         tessEvalStage.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-        tessEvalStage.module = tessEval;
+        tessEvalStage.module = shaders.tessEval;
         tessEvalStage.pName = "main";
 
         shaderStages[stageIndex] = tessCtrlStage;
@@ -236,7 +351,7 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     VkPipelineShaderStageCreateInfo fragmentStage = { 0 };
     fragmentStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentStage.module = fragShader;
+    fragmentStage.module = shaders.fragment;
     fragmentStage.pName = "main";
 
     shaderStages[stageIndex] = fragmentStage;
@@ -409,7 +524,7 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
 
-    result = vkCreateGraphicsPipelines(graphics->vkDevice, NULL, 1, &pipelineInfo, NULL, (VkPipeline *)&pipeline->vkGraphicsPipeline);
+    result = vkCreateGraphicsPipelines(graphics->vkDevice, NULL, 1, &pipelineInfo, NULL, (VkPipeline *)&pipeline->vkPipeline);
     if (result != VK_SUCCESS)
     {
         WriteWarning("Failed to create graphics pipeline");
@@ -417,6 +532,43 @@ bool CreatePipeline(Graphics graphics, Pipeline pipeline, PipelineCreateInfo *pC
     }
 
     free(shaderStages);
+
+    return true;
+}
+
+bool CreateComputePipeline(Graphics graphics, Pipeline pipeline, ComputePipelineShaders shaders)
+{
+    VkPipelineShaderStageCreateInfo stageInfo = { 0 };
+    stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageInfo.module = shaders.compute;
+    stageInfo.pName = "main";
+
+    VkPipelineLayoutCreateInfo layoutInfo = { 0 };
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.setLayoutCount = 1;
+    layoutInfo.pSetLayouts = (VkDescriptorSetLayout *)&pipeline->vkDescriptorSetLayout;
+
+    VkResult result = vkCreatePipelineLayout(graphics->vkDevice, &layoutInfo, NULL, (VkPipelineLayout *) &pipeline->vkPipelineLayout);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create pipeline layout");
+        return false;
+    }
+
+    VkComputePipelineCreateInfo createInfo = { 0 };
+    createInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    createInfo.layout = pipeline->vkPipelineLayout;
+    createInfo.stage = stageInfo;
+
+    result = vkCreateComputePipelines(graphics->vkDevice, NULL, 1, &createInfo, NULL, (VkPipeline *) &pipeline->vkPipeline);
+
+    if (result != VK_SUCCESS)
+    {
+        WriteWarning("Failed to create compute pipeline");
+        return false;
+    }
 
     return true;
 }

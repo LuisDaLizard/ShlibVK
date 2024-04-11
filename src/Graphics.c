@@ -876,7 +876,7 @@ QueueFamilyIndices FindQueueFamilies(Graphics graphics, VkPhysicalDevice device)
     int i;
     for (i = 0; i < queueFamilyCount; i++)
     {
-        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT && queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT)
         {
             VkBool32 presentSupport = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(device, i, graphics->vkSurface, &presentSupport);

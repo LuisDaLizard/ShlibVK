@@ -19,6 +19,7 @@ set(SOURCES
         src/Buffer.c
         src/UniformBuffer.c
         src/Texture.c
+        src/StorageBuffer.c
         src/Math/Matrix.c
         src/Math/Vec2.c
         src/Math/Vec3.c
