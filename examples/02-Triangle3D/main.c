@@ -97,8 +97,13 @@ void InitPipeline()
 
     Attribute position = { 0 };
     position.location = 0;
+    position.binding = 0;
     position.offset = 0;
     position.components = 3;
+
+    InputBinding binding = { 0 };
+    binding.binding = 0;
+    binding.stride = sizeof(Vertex);
 
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
@@ -107,7 +112,8 @@ void InitPipeline()
     createInfo.vertexShaderSize = size;
     createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/quad.frag", &size);
     createInfo.fragmentShaderSize = size;
-    createInfo.stride = sizeof(Vertex);
+    createInfo.bindingCount = 1;
+    createInfo.pBindings = &binding;
     createInfo.attributeCount = 1;
     createInfo.pAttributes = &position;
     createInfo.descriptorCount = 1;
@@ -118,10 +124,13 @@ void InitPipeline()
 
 void InitMesh()
 {
+    unsigned int stride = sizeof(Vertex);
+
     MeshCreateInfo createInfo = { 0 };
-    createInfo.stride = sizeof(Vertex);
     createInfo.vertexCount = 3;
-    createInfo.pVertices = (float *)vertices;
+    createInfo.bufferCount = 1;
+    createInfo.strides = &stride;
+    createInfo.ppData = (void **)&vertices;
 
     MeshCreate(gGraphics, &createInfo, &gMesh);
 }

@@ -1,5 +1,6 @@
 #include <ShlibVK/ShlibVK.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct sVertex
 {
@@ -11,7 +12,7 @@ typedef struct sVertex
     float b;
 } Vertex;
 
-const Vertex vertices[] =
+const Vertex gVertices[] =
         {
                 { 0.0f, -0.5f, 1.0f, 1.0f, 1.0f},
                 {-0.5f,  0.5f, 0.0f, 0.0f, 1.0f},
@@ -87,6 +88,10 @@ void InitPipeline()
 
     Attribute attributes[] = {position, color};
 
+    InputBinding binding = { 0 };
+    binding.stride = sizeof(Vertex);
+    binding.binding = 0;
+
     PipelineCreateInfo createInfo = { 0 };
     createInfo.topology = TOPOLOGY_TRIANGLE_LIST;
     int size = 0;
@@ -94,9 +99,10 @@ void InitPipeline()
     createInfo.vertexShaderSize = size;
     createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/triangle.frag", &size);
     createInfo.fragmentShaderSize = size;
+    createInfo.bindingCount = 1;
+    createInfo.pBindings = &binding;
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
-    createInfo.stride = sizeof(Vertex);
     createInfo.descriptorCount = 0;
     createInfo.pDescriptors = NULL;
 
@@ -105,10 +111,15 @@ void InitPipeline()
 
 void InitMesh()
 {
+    unsigned int stride = sizeof(Vertex);
+    Vertex *vertices = malloc(sizeof(Vertex) * 3);
+    memcpy(vertices, gVertices, sizeof(Vertex) * 3);
+
     MeshCreateInfo createInfo = { 0 };
-    createInfo.stride = sizeof(Vertex);
+    createInfo.bufferCount = 1;
+    createInfo.strides = &stride;
     createInfo.vertexCount = 3;
-    createInfo.pVertices = (float *)vertices;
+    createInfo.ppData = &vertices;
 
     MeshCreate(gGraphics, &createInfo, &gMesh);
 }

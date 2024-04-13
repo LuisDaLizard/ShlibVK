@@ -9,16 +9,18 @@ extern "C" {
 #include "Buffer.h"
 
 struct sMeshCreateInfo {
-    unsigned int stride;
     unsigned int vertexCount;
+    unsigned int bufferCount;
 
-    float *pVertices;
+    unsigned int *strides;
+    void **ppData;
 };
 
 struct sMesh {
     unsigned int vertexCount;
+    unsigned int bufferCount;
 
-    Buffer vertexBuffer;
+    Buffer *pVertexBuffers;
 };
 
 typedef struct sMeshCreateInfo MeshCreateInfo;
@@ -27,6 +29,8 @@ typedef struct sMesh *Mesh;
 bool MeshCreate(Graphics graphics, MeshCreateInfo *pCreateInfo, Mesh *pMesh);
 
 void MeshDestroy(Graphics graphics, Mesh mesh);
+
+Buffer MeshGetBuffer(Mesh mesh, unsigned int index);
 
 void MeshDraw(Graphics graphics, Mesh mesh);
 

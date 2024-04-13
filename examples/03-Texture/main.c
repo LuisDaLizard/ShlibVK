@@ -16,7 +16,7 @@ typedef struct sUniformMatrices
     Matrix view;
 } UniformMatrices;
 
-const Vertex vertices[] =
+const Vertex gVertices[] =
         {
                 {{ 0.5f, 0.0f, -0.5f }, {1, 1}},
                 {{ 0.5f, 0.0f,  0.5f }, {1, 0}},
@@ -124,6 +124,10 @@ void InitPipeline()
     uv.offset = sizeof(Vec3);
     uv.components = 2;
 
+    InputBinding binding = { 0 };
+    binding.binding = 0;
+    binding.stride = sizeof(Vertex);
+
     Attribute attributes[2] = {position, uv};
     Descriptor descriptors[2] = {matrices, texture};
 
@@ -134,7 +138,8 @@ void InitPipeline()
     createInfo.vertexShaderSize = size;
     createInfo.pFragmentShaderCode = FileReadBytes("../../resources/shaders/bin/quad.frag", &size);
     createInfo.fragmentShaderSize = size;
-    createInfo.stride = sizeof(Vertex);
+    createInfo.bindingCount = 1;
+    createInfo.pBindings = &binding;
     createInfo.attributeCount = 2;
     createInfo.pAttributes = attributes;
     createInfo.descriptorCount = 2;
@@ -145,10 +150,15 @@ void InitPipeline()
 
 void InitMesh()
 {
+    unsigned int stride = sizeof(Vertex);
+    Vertex *vertices = malloc(sizeof(Vertex) * 6);
+    memcpy(vertices, gVertices, sizeof(Vertex) * 6);
+
     MeshCreateInfo createInfo = { 0 };
-    createInfo.stride = sizeof(Vertex);
     createInfo.vertexCount = 6;
-    createInfo.pVertices = (float *)vertices;
+    createInfo.bufferCount = 1;
+    createInfo.strides = &stride;
+    createInfo.ppData = (void **)&vertices;
 
     MeshCreate(gGraphics, &createInfo, &gMesh);
 }

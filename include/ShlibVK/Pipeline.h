@@ -27,7 +27,13 @@ typedef enum eDescriptorType {
     DESCRIPTOR_TYPE_SAMPLER,
 } DescriptorType;
 
+typedef struct sInputBinding {
+    unsigned int binding;
+    unsigned int stride;
+} InputBinding;
+
 typedef struct sAttribute {
+    unsigned int binding;
     unsigned int location;
     unsigned int components;
     unsigned int offset;
@@ -59,7 +65,9 @@ struct sPipelineCreateInfo {
     Topology topology;
     unsigned int patchSize;
 
-    unsigned int stride;
+    unsigned int bindingCount;
+    InputBinding *pBindings;
+
     unsigned int attributeCount;
     Attribute *pAttributes;
 

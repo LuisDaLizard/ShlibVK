@@ -8,38 +8,45 @@ bool MeshCreate(Graphics graphics, MeshCreateInfo *pCreateInfo, Mesh *pMesh)
 {
     Mesh mesh = malloc(sizeof(struct sMesh));
     mesh->vertexCount = pCreateInfo->vertexCount;
+    mesh->bufferCount = pCreateInfo->bufferCount;
+    mesh->pVertexBuffers = malloc(sizeof(Buffer) * mesh->bufferCount);
 
-    unsigned int size = mesh->vertexCount * pCreateInfo->stride;
-
-    Buffer stagingBuffer;
-
-    BufferCreateInfo stagingInfo = { 0 };
-    stagingInfo.local = false;
-    stagingInfo.size = size;
-    stagingInfo.usage = USAGE_TRANSFER_SRC;
-
-    if (!BufferCreate(graphics, &stagingInfo, &stagingBuffer))
+    int i;
+    for (i = 0; i < mesh->bufferCount; i++)
     {
-        WriteWarning("Unable to create staging buffer");
-        return false;
+        unsigned int stride = pCreateInfo->strides[i];
+        unsigned int size = mesh->vertexCount * stride;
+
+        Buffer stagingBuffer;
+
+        BufferCreateInfo stagingInfo = { 0 };
+        stagingInfo.local = false;
+        stagingInfo.size = size;
+        stagingInfo.usage = USAGE_TRANSFER_SRC;
+
+        if (!BufferCreate(graphics, &stagingInfo, &stagingBuffer))
+        {
+            WriteWarning("Failed to create staging buffer");
+            return false;
+        }
+
+        BufferSetData(graphics, stagingBuffer, pCreateInfo->ppData[i], size, 0);
+
+        BufferCreateInfo vertexInfo = { 0 };
+        vertexInfo.local = true;
+        vertexInfo.size = size;
+        vertexInfo.usage = USAGE_TRANSFER_DST | USAGE_VERTEX_BUFFER | USAGE_STORAGE_BUFFER;
+
+        if (!BufferCreate(graphics, &vertexInfo, &mesh->pVertexBuffers[i]))
+        {
+            WriteWarning("Unable to create vertex buffer");
+            return false;
+        }
+
+        BufferCopy(graphics, stagingBuffer, mesh->pVertexBuffers[i], size);
+
+        BufferDestroy(graphics, stagingBuffer);
     }
-
-    BufferSetData(graphics, stagingBuffer, pCreateInfo->pVertices, size, 0);
-
-    BufferCreateInfo vertexInfo = { 0 };
-    vertexInfo.local = true;
-    vertexInfo.size = size;
-    vertexInfo.usage = USAGE_TRANSFER_DST | USAGE_VERTEX_BUFFER;
-
-    if (!BufferCreate(graphics, &vertexInfo, &mesh->vertexBuffer))
-    {
-        WriteWarning("Unable to create vertex buffer");
-        return false;
-    }
-
-    BufferCopy(graphics, stagingBuffer, mesh->vertexBuffer, size);
-
-    BufferDestroy(graphics, stagingBuffer);
 
     *pMesh = mesh;
     return true;
@@ -49,15 +56,33 @@ void MeshDestroy(Graphics graphics, Mesh mesh)
 {
     vkDeviceWaitIdle(graphics->vkDevice);
 
-    BufferDestroy(graphics, mesh->vertexBuffer);
+    int i;
+    for (i = 0; i < mesh->bufferCount; i++)
+        BufferDestroy(graphics, mesh->pVertexBuffers[i]);
 
+    free(mesh->pVertexBuffers);
     free(mesh);
+}
+
+Buffer MeshGetBuffer(Mesh mesh, unsigned int index)
+{
+    if (index >= mesh->bufferCount)
+        return NULL;
+    return mesh->pVertexBuffers[index];
 }
 
 void MeshDraw(Graphics graphics, Mesh mesh)
 {
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(graphics->vkCommandBuffer, 0, 1, (VkBuffer *)&mesh->vertexBuffer->vkBuffer, &offset);
+    VkBuffer *buffers = malloc(sizeof(VkBuffer) * mesh->bufferCount);
+
+    int i;
+    for (i = 0; i < mesh->bufferCount; i++)
+        buffers[i] = mesh->pVertexBuffers[i]->vkBuffer;
+
+    vkCmdBindVertexBuffers(graphics->vkCommandBuffer, 0, mesh->bufferCount, buffers, &offset);
 
     vkCmdDraw(graphics->vkCommandBuffer, mesh->vertexCount, 1, 0, 0);
+
+    free(buffers);
 }

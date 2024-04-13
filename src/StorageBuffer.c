@@ -10,7 +10,7 @@ bool StorageBufferCreate(Graphics graphics, StorageBufferCreateInfo *pCreateInfo
 
     BufferCreateInfo bufferInfo = { 0 };
     bufferInfo.size = pCreateInfo->size;
-    bufferInfo.usage = USAGE_STORAGE_BUFFER | USAGE_TRANSFER_DST;
+    bufferInfo.usage = USAGE_STORAGE_BUFFER | USAGE_VERTEX_BUFFER | USAGE_TRANSFER_DST;
     bufferInfo.persistent = false;
     bufferInfo.local = true;
 

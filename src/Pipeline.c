@@ -380,13 +380,16 @@ bool CreateGraphicsPipeline(Graphics graphics, Pipeline pipeline, GraphicsPipeli
     shaderStages[stageIndex] = fragmentStage;
     stageIndex++;
 
-    VkVertexInputBindingDescription bindingDescription = { 0 };
-    bindingDescription.binding = 0;
-    bindingDescription.stride = pCreateInfo->stride;
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    int i;
+    VkVertexInputBindingDescription *bindingDescriptions = malloc(sizeof(VkVertexInputBindingDescription) * pCreateInfo->bindingCount);
+    for (i = 0; i < pCreateInfo->bindingCount; i++)
+    {
+        bindingDescriptions[i].binding = pCreateInfo->pBindings[i].binding;
+        bindingDescriptions[i].stride = pCreateInfo->pBindings[i].stride;
+        bindingDescriptions[i].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    }
 
     VkVertexInputAttributeDescription *attributeDescriptions = malloc(sizeof(VkVertexInputAttributeDescription) * pCreateInfo->attributeCount);
-    int i;
     for (i = 0; i < pCreateInfo->attributeCount; i++)
     {
         unsigned int format;
@@ -418,8 +421,8 @@ bool CreateGraphicsPipeline(Graphics graphics, Pipeline pipeline, GraphicsPipeli
 
     VkPipelineVertexInputStateCreateInfo vertexInput = { 0 };
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInput.vertexBindingDescriptionCount = 1;
-    vertexInput.pVertexBindingDescriptions = &bindingDescription;
+    vertexInput.vertexBindingDescriptionCount = pCreateInfo->bindingCount;
+    vertexInput.pVertexBindingDescriptions = bindingDescriptions;
     vertexInput.vertexAttributeDescriptionCount = pCreateInfo->attributeCount;
     vertexInput.pVertexAttributeDescriptions = attributeDescriptions;
 
