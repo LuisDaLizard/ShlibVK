@@ -70,6 +70,17 @@ void BufferSetData(Graphics graphics, Buffer buffer, void *pData, unsigned int s
     vkUnmapMemory(graphics->vkDevice, buffer->vkDeviceMemory);
 }
 
+void *BufferGetData(Graphics graphics, Buffer buffer, unsigned int size, unsigned int offset)
+{
+    void *data;
+    void *userData = malloc(size);
+    vkMapMemory(graphics->vkDevice, buffer->vkDeviceMemory, offset, size, 0, &data);
+    memcpy(userData, data, size);
+    vkUnmapMemory(graphics->vkDevice, buffer->vkDeviceMemory);
+
+    return userData;
+}
+
 void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size)
 {
     VkCommandBuffer commandBuffer = GraphicsBeginSingleUseCommand(graphics);

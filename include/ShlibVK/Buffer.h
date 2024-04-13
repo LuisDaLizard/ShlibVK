@@ -42,6 +42,8 @@ void BufferDestroy(Graphics graphics, Buffer buffer);
 
 void BufferSetData(Graphics graphics, Buffer buffer, void *pData, unsigned int size, unsigned int offset);
 
+void *BufferGetData(Graphics graphics, Buffer buffer, unsigned int size, unsigned int offset);
+
 void BufferCopy(Graphics graphics, Buffer src, Buffer dst, unsigned int size);
 
 void BufferCopyToTexture(Graphics graphics, Buffer src, Texture dst);
