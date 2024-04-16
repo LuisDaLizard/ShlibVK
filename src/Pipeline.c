@@ -160,7 +160,7 @@ VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShader
 
 bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned int descriptorCount, Descriptor *pDescriptors)
 {
-    unsigned int uniformCount = 0, samplerCount = 0;
+    unsigned int uniformCount = 0, samplerCount = 0, storageCount = 0;
     int i = 0;
     for (i = 0; i < descriptorCount; i++)
     {
@@ -172,6 +172,9 @@ bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned
             case DESCRIPTOR_TYPE_SAMPLER:
                 samplerCount++;
                 break;
+            case DESCRIPTOR_TYPE_STORAGE:
+                storageCount++;
+                break;
             default:
                 return false;
         }
@@ -181,6 +184,8 @@ bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned
     if (uniformCount)
         poolCount++;
     if (samplerCount)
+        poolCount++;
+    if (storageCount)
         poolCount++;
 
     VkDescriptorPoolSize *poolSizes = NULL;
@@ -201,6 +206,14 @@ bool CreatePipelineDescriptorPool(Graphics graphics, Pipeline pipeline, unsigned
         {
             poolSizes[index].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             poolSizes[index].descriptorCount = samplerCount;
+
+            index++;
+        }
+
+        if (storageCount)
+        {
+            poolSizes[index].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            poolSizes[index].descriptorCount = storageCount;
 
             index++;
         }
@@ -239,6 +252,9 @@ bool CreateDescriptorSetLayout(Graphics graphics, Pipeline pipeline, unsigned in
                 break;
             case DESCRIPTOR_TYPE_UNIFORM:
                 type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                break;
+            case DESCRIPTOR_TYPE_STORAGE:
+                type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                 break;
             default:
                 return false;
@@ -413,7 +429,7 @@ bool CreateGraphicsPipeline(Graphics graphics, Pipeline pipeline, GraphicsPipeli
                 return false;
         }
 
-        attributeDescriptions[i].binding = 0;
+        attributeDescriptions[i].binding = pCreateInfo->pAttributes[i].binding;
         attributeDescriptions[i].location = pCreateInfo->pAttributes[i].location;
         attributeDescriptions[i].offset = pCreateInfo->pAttributes[i].offset;
         attributeDescriptions[i].format = format;

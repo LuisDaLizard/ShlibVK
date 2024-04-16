@@ -73,14 +73,14 @@ Buffer MeshGetBuffer(Mesh mesh, unsigned int index)
 
 void MeshDraw(Graphics graphics, Mesh mesh)
 {
-    VkDeviceSize offset = 0;
     VkBuffer *buffers = malloc(sizeof(VkBuffer) * mesh->bufferCount);
+    VkDeviceSize *offsets = calloc(mesh->bufferCount, sizeof(VkDeviceSize));
 
     int i;
     for (i = 0; i < mesh->bufferCount; i++)
         buffers[i] = mesh->pVertexBuffers[i]->vkBuffer;
 
-    vkCmdBindVertexBuffers(graphics->vkCommandBuffer, 0, mesh->bufferCount, buffers, &offset);
+    vkCmdBindVertexBuffers(graphics->vkCommandBuffer, 0, mesh->bufferCount, buffers, offsets);
 
     vkCmdDraw(graphics->vkCommandBuffer, mesh->vertexCount, 1, 0, 0);
 

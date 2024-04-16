@@ -20,11 +20,13 @@ typedef enum eShaderStage {
     STAGE_TESSELATION_CONTROL = 0x02,
     STAGE_TESSELATION_EVALUATION = 0x04,
     STAGE_FRAGMENT = 0x10,
+    STAGE_COMPUTE = 0x20,
 } ShaderStage;
 
 typedef enum eDescriptorType {
     DESCRIPTOR_TYPE_UNIFORM = 0,
     DESCRIPTOR_TYPE_SAMPLER,
+    DESCRIPTOR_TYPE_STORAGE,
 } DescriptorType;
 
 typedef struct sInputBinding {
