@@ -136,7 +136,9 @@ void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int 
         return;
 
     PipelineBind(graphics, pipeline);
-    vkCmdDispatch(graphics->vkCommandBuffer, x, y, z);
+    void *commandBuffer = GraphicsBeginSingleUseCommand(graphics);
+    vkCmdDispatch(commandBuffer, x, y, z);
+    GraphicsEndSingleUseCommand(graphics, commandBuffer);
 }
 
 void PipelineUpdateDescriptor(Graphics graphics, Pipeline pipeline, Descriptor descriptor)
