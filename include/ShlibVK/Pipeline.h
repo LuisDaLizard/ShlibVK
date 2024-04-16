@@ -112,6 +112,8 @@ void PipelineBind(Graphics graphics, Pipeline pipeline);
 
 void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int x, unsigned int y, unsigned int z);
 
+void PipelineUpdateDescriptor(Graphics graphics, Pipeline pipeline, Descriptor descriptor);
+
 #ifdef __cplusplus
 }
 #endif

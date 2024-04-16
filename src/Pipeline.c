@@ -139,6 +139,57 @@ void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int 
     vkCmdDispatch(graphics->vkCommandBuffer, x, y, z);
 }
 
+void PipelineUpdateDescriptor(Graphics graphics, Pipeline pipeline, Descriptor descriptor)
+{
+    VkWriteDescriptorSet descriptorWrite = { 0 };
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = pipeline->vkDescriptorSet;
+    descriptorWrite.dstBinding = descriptor.location;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorCount = 1;
+
+    switch(descriptor.type)
+    {
+        case DESCRIPTOR_TYPE_UNIFORM:
+        {
+            VkDescriptorBufferInfo bufferInfo = { 0 };
+            bufferInfo.buffer = descriptor.uniform->buffer->vkBuffer;
+            bufferInfo.offset = 0;
+            bufferInfo.range = descriptor.uniform->buffer->size;
+
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+            break;
+        }
+        case DESCRIPTOR_TYPE_SAMPLER:
+        {
+            VkDescriptorImageInfo imageInfo = { 0 };
+            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo.imageView = descriptor.texture->vkImageView;
+            imageInfo.sampler = descriptor.texture->vkSampler;
+
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrite.pImageInfo = &imageInfo;
+            break;
+        }
+        case DESCRIPTOR_TYPE_STORAGE:
+        {
+            VkDescriptorBufferInfo bufferInfo = { 0 };
+            bufferInfo.buffer = descriptor.storage->buffer->vkBuffer;
+            bufferInfo.offset = 0;
+            bufferInfo.range = descriptor.storage->buffer->size;
+
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+            break;
+        }
+        default:
+            return;
+    }
+
+    vkUpdateDescriptorSets(graphics->vkDevice, 1, &descriptorWrite, 0, NULL);
+}
+
 VkShaderModule CreateShaderModule(Graphics graphics, const unsigned int *pShaderCode, unsigned int shaderCodeSize)
 {
     VkShaderModule shaderModule;
@@ -303,6 +354,9 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, unsigned int des
     int i;
     for (i = 0; i < descriptorCount; i++)
     {
+        if (!pDescriptors[i].uniform)
+            continue;
+
         VkWriteDescriptorSet descriptorWrite = { 0 };
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrite.dstSet = pipeline->vkDescriptorSet;
