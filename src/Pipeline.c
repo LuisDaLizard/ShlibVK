@@ -334,6 +334,17 @@ bool CreateDescriptorSets(Graphics graphics, Pipeline pipeline, unsigned int des
                 descriptorWrite.pImageInfo = &imageInfo;
                 break;
             }
+            case DESCRIPTOR_TYPE_STORAGE:
+            {
+                VkDescriptorBufferInfo bufferInfo = { 0 };
+                bufferInfo.buffer = pDescriptors[i].storage->buffer->vkBuffer;
+                bufferInfo.offset = 0;
+                bufferInfo.range = pDescriptors[i].storage->buffer->size;
+
+                descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                descriptorWrite.pBufferInfo = &bufferInfo;
+                break;
+            }
             default:
                 return false;
         }

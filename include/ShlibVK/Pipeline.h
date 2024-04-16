@@ -7,6 +7,7 @@ extern "C" {
 
 #include "Graphics.h"
 #include "UniformBuffer.h"
+#include "StorageBuffer.h"
 #include <stdbool.h>
 
 typedef enum eTopology {
@@ -49,6 +50,7 @@ typedef struct sDescriptor {
 
     union {
         UniformBuffer uniform;
+        StorageBuffer storage;
         Texture texture;
     };
 
