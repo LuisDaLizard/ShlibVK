@@ -7,6 +7,7 @@ extern "C" {
 
 #include "Graphics.h"
 #include "Buffer.h"
+#include "StorageBuffer.h"
 
 struct sMeshCreateInfo {
     unsigned int vertexCount;
@@ -31,6 +32,8 @@ bool MeshCreate(Graphics graphics, MeshCreateInfo *pCreateInfo, Mesh *pMesh);
 void MeshDestroy(Graphics graphics, Mesh mesh);
 
 Buffer MeshGetBuffer(Mesh mesh, unsigned int index);
+
+StorageBuffer MeshGetStorageBuffer(Mesh mesh, unsigned int index);
 
 void MeshDraw(Graphics graphics, Mesh mesh);
 

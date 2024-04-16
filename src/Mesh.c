@@ -71,6 +71,13 @@ Buffer MeshGetBuffer(Mesh mesh, unsigned int index)
     return mesh->pVertexBuffers[index];
 }
 
+StorageBuffer MeshGetStorageBuffer(Mesh mesh, unsigned int index)
+{
+    if (index >= mesh->bufferCount)
+        return NULL;
+    return (StorageBuffer)mesh->pVertexBuffers[index];
+}
+
 void MeshDraw(Graphics graphics, Mesh mesh)
 {
     VkBuffer *buffers = malloc(sizeof(VkBuffer) * mesh->bufferCount);
