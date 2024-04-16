@@ -75,7 +75,7 @@ StorageBuffer MeshGetStorageBuffer(Mesh mesh, unsigned int index)
 {
     if (index >= mesh->bufferCount)
         return NULL;
-    return (StorageBuffer)mesh->pVertexBuffers[index];
+    return (StorageBuffer)&mesh->pVertexBuffers[index];
 }
 
 void MeshDraw(Graphics graphics, Mesh mesh)
