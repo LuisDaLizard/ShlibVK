@@ -125,7 +125,6 @@ void PipelineBind(Graphics graphics, Pipeline pipeline)
     if (pipeline->compute)
         bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
-
     vkCmdBindPipeline(graphics->vkCommandBuffer, bindPoint, pipeline->vkPipeline);
     vkCmdBindDescriptorSets(graphics->vkCommandBuffer, bindPoint, pipeline->vkPipelineLayout, 0, 1, (VkDescriptorSet *)&pipeline->vkDescriptorSet, 0, NULL);
 }
@@ -135,8 +134,9 @@ void PipelineComputeDispatch(Graphics graphics, Pipeline pipeline, unsigned int 
     if (!x || !y || !z)
         return;
 
-    PipelineBind(graphics, pipeline);
     void *commandBuffer = GraphicsBeginSingleUseCommand(graphics);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vkPipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vkPipelineLayout, 0, 1, (VkDescriptorSet *)&pipeline->vkDescriptorSet, 0, NULL);
     vkCmdDispatch(commandBuffer, x, y, z);
     GraphicsEndSingleUseCommand(graphics, commandBuffer);
 }
