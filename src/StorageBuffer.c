@@ -12,7 +12,7 @@ bool StorageBufferCreate(Graphics graphics, StorageBufferCreateInfo *pCreateInfo
     bufferInfo.size = pCreateInfo->size;
     bufferInfo.usage = USAGE_STORAGE_BUFFER | USAGE_VERTEX_BUFFER | USAGE_TRANSFER_DST;
     bufferInfo.persistent = false;
-    bufferInfo.local = true;
+    bufferInfo.local = false;
 
     if (!BufferCreate(graphics, &bufferInfo, &storageBuffer->buffer))
         return false;
@@ -29,7 +29,7 @@ void StorageBufferDestroy(Graphics graphics, StorageBuffer storageBuffer)
     free(storageBuffer);
 }
 
-void StorageBufferSetData(StorageBuffer storageBuffer, unsigned int size, void *pData)
+void StorageBufferSetData(Graphics graphics, StorageBuffer storageBuffer, unsigned int size, void *pData)
 {
-    memcpy(storageBuffer->buffer->pMappedData, pData, size);
+    BufferSetData(graphics, storageBuffer->buffer, pData, size, 0);
 }

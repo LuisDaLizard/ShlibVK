@@ -19,6 +19,6 @@ typedef struct sStorageBuffer *StorageBuffer;
 bool StorageBufferCreate(Graphics graphics, StorageBufferCreateInfo *pCreateInfo, StorageBuffer *pStorageBuffer);
 void StorageBufferDestroy(Graphics graphics, StorageBuffer storageBuffer);
 
-void StorageBufferSetData(StorageBuffer storageBuffer, unsigned int size, void *pData);
+void StorageBufferSetData(Graphics graphics, StorageBuffer storageBuffer, unsigned int size, void *pData);
 
 #endif //SHLIBVK_STORAGEBUFFER_H
